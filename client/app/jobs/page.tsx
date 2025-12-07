@@ -4,7 +4,7 @@ import { CreateJobDialog } from "@/components/create-job-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { jobsApi, Job, JobStatus, JobCandidate } from "@/lib/api"
+import { jobsApi, Job, JobStatus } from "@/lib/api"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
 import { useEffect, useState, useCallback } from "react"
@@ -12,13 +12,12 @@ import { useRouter } from "next/navigation"
 import {
   Users,
   Brain,
-  FileText,
-  Target,
   ChevronRight,
   MoreHorizontal,
   RefreshCw,
   Trash2,
-  Plus,
+  Calendar,
+  Search
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -28,6 +27,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 
 interface JobWithStats extends Job {
   candidateCount?: number
@@ -41,9 +48,9 @@ function JobCard({ job, onDelete }: { job: JobWithStats; onDelete: () => void })
   const [stats, setStats] = useState<{
     total: number
     scored: number
-    evidence: number
     avgScore: number
   } | null>(null)
+  
   const [loadingStats, setLoadingStats] = useState(true)
 
   useEffect(() => {
@@ -51,18 +58,16 @@ function JobCard({ job, onDelete }: { job: JobWithStats; onDelete: () => void })
       try {
         const candidates = await jobsApi.getCandidates(job.id, 100)
         const scored = candidates.filter((c) => c.match_score !== null)
-        const withEvidence = candidates.filter((c) => c.evidence)
         const avgScore = scored.length > 0
           ? Math.round(scored.reduce((sum, c) => sum + (c.match_score || 0), 0) / scored.length)
           : 0
         setStats({
           total: candidates.length,
           scored: scored.length,
-          evidence: withEvidence.length,
           avgScore,
         })
       } catch {
-        setStats({ total: 0, scored: 0, evidence: 0, avgScore: 0 })
+        setStats({ total: 0, scored: 0, avgScore: 0 })
       } finally {
         setLoadingStats(false)
       }
@@ -73,144 +78,98 @@ function JobCard({ job, onDelete }: { job: JobWithStats; onDelete: () => void })
   const getStatusColor = (status: JobStatus) => {
     switch (status) {
       case JobStatus.ACTIVE:
-        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+        return "text-green-600 bg-green-50 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800"
       case JobStatus.PAUSED:
-        return "bg-amber-500/20 text-amber-400 border-amber-500/30"
+        return "text-amber-600 bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800"
       case JobStatus.CLOSED:
-        return "bg-zinc-500/20 text-zinc-400 border-zinc-500/30"
+        return "text-zinc-600 bg-zinc-50 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700"
       default:
-        return ""
+        return "bg-secondary text-secondary-foreground"
     }
   }
 
   return (
-    <div
-      className="group relative bg-card border border-border rounded-xl p-5 hover:border-primary/50 hover:bg-accent/50 transition-all cursor-pointer"
+    <Card 
+      className="group hover:border-primary/50 transition-all cursor-pointer shadow-sm"
       onClick={() => router.push(`/jobs/${job.id}`)}
     >
-      {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-semibold text-lg truncate">{job.title}</h3>
-            <Badge variant="outline" className={cn("text-xs", getStatusColor(job.status))}>
-              {job.status}
-            </Badge>
-          </div>
-          {job.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2">{job.description}</p>
-          )}
+      <CardHeader className="pb-3 space-y-0">
+        <div className="flex items-start justify-between">
+           <div className="space-y-1 pr-4">
+             <CardTitle className="text-base font-semibold leading-tight">{job.title}</CardTitle>
+             <p className="text-sm text-muted-foreground line-clamp-1">{job.description || "No description"}</p>
+           </div>
+           <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2 text-muted-foreground hover:text-foreground">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={(e) => {
+                  e.stopPropagation()
+                  navigator.clipboard.writeText(job.id)
+                  toast.success("Job ID copied")
+                }}>
+                  Copy ID
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-red-600 focus:text-red-600"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDelete()
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+           </DropdownMenu>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={(e) => {
-              e.stopPropagation()
-              navigator.clipboard.writeText(job.id)
-              toast.success("Job ID copied")
-            }}>
-              Copy Job ID
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-red-400"
-              onClick={(e) => {
-                e.stopPropagation()
-                onDelete()
-              }}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      </CardHeader>
+      
+      <CardContent className="pb-3">
+         <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1.5" title="Total Candidates">
+               <Users className="h-4 w-4" />
+               {loadingStats ? <Skeleton className="h-4 w-8" /> : <span>{stats?.total || 0}</span>}
+            </div>
+            <div className="flex items-center gap-1.5" title="Scored Candidates">
+               <Brain className="h-4 w-4" />
+               {loadingStats ? <Skeleton className="h-4 w-8" /> : <span>{stats?.scored || 0}</span>}
+            </div>
+         </div>
+         
+         <div className="mt-3 flex flex-wrap gap-1.5 h-6 overflow-hidden">
+            {job.keywords?.slice(0, 3).map(kw => (
+               <span key={kw} className="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-secondary-foreground border border-transparent">
+                  {kw}
+               </span>
+            ))}
+            {(job.keywords?.length || 0) > 3 && (
+               <span className="text-[10px] text-muted-foreground px-1.5 py-0.5">+{(job.keywords?.length || 0) - 3}</span>
+            )}
+         </div>
+      </CardContent>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
-        <div className="text-center p-2 bg-muted/50 rounded-lg">
-          {loadingStats ? (
-            <Skeleton className="h-6 w-8 mx-auto mb-1" />
-          ) : (
-            <div className="text-lg font-bold text-foreground">{stats?.total || 0}</div>
-          )}
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center justify-center gap-1">
-            <Users className="h-3 w-3" />
-            Candidates
-          </div>
-        </div>
-        <div className="text-center p-2 bg-muted/50 rounded-lg">
-          {loadingStats ? (
-            <Skeleton className="h-6 w-8 mx-auto mb-1" />
-          ) : (
-            <div className="text-lg font-bold text-cyan-400">{stats?.scored || 0}</div>
-          )}
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center justify-center gap-1">
-            <Brain className="h-3 w-3" />
-            Scored
-          </div>
-        </div>
-        <div className="text-center p-2 bg-muted/50 rounded-lg">
-          {loadingStats ? (
-            <Skeleton className="h-6 w-8 mx-auto mb-1" />
-          ) : (
-            <div className="text-lg font-bold text-violet-400">{stats?.evidence || 0}</div>
-          )}
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center justify-center gap-1">
-            <FileText className="h-3 w-3" />
-            Evidence
-          </div>
-        </div>
-        <div className="text-center p-2 bg-muted/50 rounded-lg">
-          {loadingStats ? (
-            <Skeleton className="h-6 w-8 mx-auto mb-1" />
-          ) : (
-            <div className="text-lg font-bold text-amber-400">{stats?.avgScore || "-"}</div>
-          )}
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center justify-center gap-1">
-            <Target className="h-3 w-3" />
-            Avg Score
-          </div>
-        </div>
-      </div>
-
-      {/* Keywords */}
-      {job.keywords && job.keywords.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-3">
-          {job.keywords.slice(0, 5).map((kw) => (
-            <Badge key={kw} variant="secondary" className="text-[10px] bg-secondary text-secondary-foreground">
-              {kw}
-            </Badge>
-          ))}
-          {job.keywords.length > 5 && (
-            <Badge variant="outline" className="text-[10px]">
-              +{job.keywords.length - 5}
-            </Badge>
-          )}
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="flex items-center justify-between pt-3 border-t border-border">
-        <span className="text-xs text-muted-foreground">
-          Created {formatDistanceToNow(new Date(job.created_at), { addSuffix: true })}
-        </span>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-primary transition-colors">
-          View Pipeline
-          <ChevronRight className="h-3 w-3" />
-        </div>
-      </div>
-    </div>
+      <CardFooter className="pt-0 flex items-center justify-between">
+         <Badge variant="outline" className={cn("font-normal text-xs", getStatusColor(job.status))}>
+            {job.status.toLowerCase()}
+         </Badge>
+         <div className="flex items-center text-xs text-muted-foreground">
+            <Calendar className="mr-1 h-3 w-3" />
+            {formatDistanceToNow(new Date(job.created_at), { addSuffix: true })}
+         </div>
+      </CardFooter>
+    </Card>
   )
 }
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -238,45 +197,60 @@ export default function JobsPage() {
     }
   }
 
+  const filteredJobs = jobs.filter(job => 
+    job.title.toLowerCase().includes(search.toLowerCase()) || 
+    job.description?.toLowerCase().includes(search.toLowerCase())
+  )
+
   return (
-    <div className="flex-1 p-8 pt-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+    <div className="flex-1 space-y-6 p-8 pt-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Jobs</h1>
           <p className="text-muted-foreground mt-1">
-            Manage your open positions and track sourcing progress
+            Manage your open positions.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={fetchJobs} disabled={loading}>
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          </Button>
           <CreateJobDialog onCreated={fetchJobs} />
         </div>
       </div>
 
-      {/* Jobs Grid */}
+      <div className="flex items-center gap-2">
+         <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search jobs..." 
+              className="pl-9 bg-background" 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+         </div>
+         <Button variant="outline" size="icon" onClick={fetchJobs} disabled={loading}>
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+         </Button>
+      </div>
+
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-64 rounded-xl" />
+            <Skeleton key={i} className="h-40 rounded-xl" />
           ))}
         </div>
-      ) : jobs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-            <Plus className="h-8 w-8 text-muted-foreground" />
+      ) : filteredJobs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center border rounded-lg border-dashed">
+          <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mb-4">
+             <Search className="h-6 w-6 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-medium text-foreground mb-2">No jobs yet</h3>
-          <p className="text-sm text-muted-foreground mb-6 max-w-sm">
-            Create your first job to start sourcing candidates
+          <h3 className="text-lg font-medium mb-1">No jobs found</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+             {search ? "Try adjusting your search terms." : "Create a job to get started."}
           </p>
-          <CreateJobDialog onCreated={fetchJobs} />
+          {!search && <CreateJobDialog onCreated={fetchJobs} />}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {jobs.map((job) => (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredJobs.map((job) => (
             <JobCard key={job.id} job={job} onDelete={() => handleDelete(job.id)} />
           ))}
         </div>

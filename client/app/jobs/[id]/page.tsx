@@ -3,14 +3,13 @@
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
 import { jobsApi, Job, JobCandidate, GitHubSourceRequest, CandidateStatus } from "@/lib/api"
-// Badge not needed in simplified design
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Badge } from "@/components/ui/badge"
 import {
   Sheet,
   SheetContent,
@@ -19,11 +18,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
 import { toast } from "sonner"
 import {
   ArrowLeft,
@@ -33,21 +27,33 @@ import {
   CheckCircle,
   Github,
   Search,
-  ChevronDown,
-  ChevronRight,
-  ExternalLink,
   Check,
   X,
   Mail,
   Zap,
+  ThumbsUp,
+  ThumbsDown,
+  AlertCircle,
+  Info,
+  Briefcase,
+  MapPin,
+  Sparkles
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { EvidenceCard, EvidenceFeedbackCreate } from "@/lib/api/types"
-import { ThumbsUp, ThumbsDown } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-type PipelineStage = "all" | "sourced" | "shortlisted" | "interviewing" | "rejected"
+type PipelineStage = "all" | "sourced" | "shortlisted" | "rejected"
 
-// inline feedback item for evidence
+// --- Components ---
+
 interface EvidenceItemProps {
   content: string
   itemType: string
@@ -79,40 +85,63 @@ function EvidenceItemWithFeedback({ content, itemType, itemIndex, jobId, candida
   }
 
   const variantStyles = {
-    green: { text: "text-green-500", prefix: "+" },
-    red: { text: "text-red-500", prefix: "-" },
-    neutral: { text: "text-amber-500", prefix: "•" },
+    green: { 
+      bg: "bg-emerald-500/10 border-emerald-500/20", 
+      text: "text-emerald-900 dark:text-emerald-100",
+      icon: "text-emerald-600 dark:text-emerald-400",
+      Icon: CheckCircle 
+    },
+    red: { 
+      bg: "bg-rose-500/10 border-rose-500/20", 
+      text: "text-rose-900 dark:text-rose-100",
+      icon: "text-rose-600 dark:text-rose-400",
+      Icon: AlertCircle 
+    },
+    neutral: { 
+      bg: "bg-amber-500/10 border-amber-500/20", 
+      text: "text-amber-900 dark:text-amber-100",
+      icon: "text-amber-600 dark:text-amber-400",
+      Icon: Info 
+    },
   }
 
+  const Style = variantStyles[variant]
+  const Icon = Style.Icon
+
   return (
-    <li className="text-xs text-foreground flex items-start gap-1 group">
-      <span className={`${variantStyles[variant].text} mt-0.5 shrink-0`}>{variantStyles[variant].prefix}</span>
-      <span className="flex-1">{content}</span>
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+    <div className={cn("group relative flex gap-3 p-3 rounded-lg border transition-all hover:shadow-sm", Style.bg)}>
+       <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", Style.icon)} />
+       <div className="flex-1 min-w-0">
+         <p className={cn("text-sm leading-relaxed", Style.text)}>{content}</p>
+       </div>
+       
+       <div className="flex items-start gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         {feedback ? (
-          <span className="text-[10px] text-muted-foreground">
-            {feedback === "positive" ? "👍" : "👎"}
+          <span className="text-xs text-muted-foreground font-medium px-2">
+            {feedback === "positive" ? "Thanks! 👍" : "Thanks! 👎"}
           </span>
         ) : (
           <>
             <button
               onClick={() => handleFeedback("positive")}
               disabled={isSubmitting}
-              className="p-0.5 rounded hover:bg-green-500/20 text-muted-foreground hover:text-green-500 transition-colors"
+              className="p-1.5 rounded-md hover:bg-background/50 text-muted-foreground hover:text-green-600 transition-colors"
+              title="Helpful"
             >
-              {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <ThumbsUp className="h-3 w-3" />}
+              {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ThumbsUp className="h-3.5 w-3.5" />}
             </button>
             <button
               onClick={() => handleFeedback("negative")}
               disabled={isSubmitting}
-              className="p-0.5 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-500 transition-colors"
+              className="p-1.5 rounded-md hover:bg-background/50 text-muted-foreground hover:text-red-600 transition-colors"
+              title="Not helpful"
             >
-              {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <ThumbsDown className="h-3 w-3" />}
+              {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ThumbsDown className="h-3.5 w-3.5" />}
             </button>
           </>
         )}
       </div>
-    </li>
+    </div>
   )
 }
 
@@ -123,21 +152,11 @@ interface CandidateCardProps {
 }
 
 function CandidateCard({ jc, jobId, onAction }: CandidateCardProps) {
-  const [expanded, setExpanded] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [currentEvidence, setCurrentEvidence] = useState<EvidenceCard | null>(jc.evidence as unknown as EvidenceCard | null)
   const candidate = jc.candidate
   if (!candidate) return null
-
-  const githubProfile = candidate.tweet_analysis?.github_profile as {
-    username?: string
-    public_repos?: number
-    followers?: number
-    languages?: Record<string, number>
-    top_repos?: Array<{ name: string; description?: string; stars: number; language?: string }>
-    developer_score?: number
-  } | undefined
 
   const evidence = currentEvidence
 
@@ -175,263 +194,195 @@ function CandidateCard({ jc, jobId, onAction }: CandidateCardProps) {
     return ""
   }
 
-  // Simple score color: green >= 70, yellow >= 50, red < 50
   const getScoreColor = (score: number) => {
-    if (score >= 70) return "text-green-500"
-    if (score >= 50) return "text-yellow-500"
-    return "text-red-500"
+    if (score >= 80) return "text-emerald-600 border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800"
+    if (score >= 50) return "text-amber-600 border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800"
+    return "text-rose-600 border-rose-200 bg-rose-50 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800"
   }
 
   const isShortlisted = jc.status === CandidateStatus.SHORTLISTED
   const isRejected = jc.status === CandidateStatus.REJECTED
 
   return (
-    <div className={cn(
-      "border rounded-lg transition-all",
-      isShortlisted && "border-green-500/50 bg-green-500/5",
-      isRejected && "border-red-500/30 bg-red-500/5 opacity-60",
-      !isShortlisted && !isRejected && "border-border bg-card hover:border-primary/50"
+    <Card className={cn(
+      "group overflow-hidden border-border/60 transition-all hover:shadow-md",
+      isShortlisted && "border-emerald-500/50 bg-emerald-50/30 dark:bg-emerald-900/5",
+      isRejected && "border-rose-200 bg-rose-50/30 dark:bg-rose-900/5 opacity-75"
     )}>
-      {/* Main content */}
-      <div className="p-4">
-        <div className="flex items-start gap-3">
-          {/* Avatar */}
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={getAvatarUrl()} />
-            <AvatarFallback className="bg-muted text-sm text-foreground">
-              {(candidate.display_name || candidate.github_username || candidate.x_username || "?").substring(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          
-          {/* Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-foreground truncate">
-                {candidate.display_name || candidate.github_username || candidate.x_username}
-              </span>
-              {isShortlisted && (
-                <span className="text-xs text-green-500 font-medium">✓ Shortlisted</span>
-              )}
-              {isRejected && (
-                <span className="text-xs text-red-500 font-medium">✗ Rejected</span>
-              )}
+      <CardHeader className="p-5 pb-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <Avatar className="h-14 w-14 border-2 border-background shadow-sm">
+              <AvatarImage src={getAvatarUrl()} />
+              <AvatarFallback className="text-lg font-semibold">
+                {(candidate.display_name || candidate.github_username || "?").substring(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            
+            <div className="space-y-1.5">
+               <div>
+                 <h3 className="font-bold text-lg leading-none flex items-center gap-2">
+                   {candidate.display_name || candidate.github_username}
+                   {isShortlisted && <Badge variant="outline" className="text-emerald-600 bg-emerald-50 border-emerald-200 h-5 text-[10px] px-1.5">Shortlisted</Badge>}
+                   {isRejected && <Badge variant="outline" className="text-rose-600 bg-rose-50 border-rose-200 h-5 text-[10px] px-1.5">Rejected</Badge>}
+                 </h3>
+                 <div className="flex items-center gap-3 mt-1.5">
+                    {candidate.github_username && (
+                      <a href={`https://github.com/${candidate.github_username}`} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+                        <Github className="h-3.5 w-3.5" /> {candidate.github_username}
+                      </a>
+                    )}
+                    {candidate.x_username && (
+                      <a href={`https://x.com/${candidate.x_username}`} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+                        <span className="text-[10px] font-bold">𝕏</span> @{candidate.x_username.replace("@", "")}
+                      </a>
+                    )}
+                    {candidate.location && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5" /> {candidate.location}
+                      </span>
+                    )}
+                 </div>
+               </div>
             </div>
-            {candidate.github_username ? (
-              <a
-                href={`https://github.com/${candidate.github_username}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 mt-0.5"
-              >
-                @{candidate.github_username}
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            ) : candidate.x_username ? (
-              <a
-                href={`https://x.com/${candidate.x_username}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 mt-0.5"
-              >
-                @{candidate.x_username}
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            ) : null}
           </div>
 
-          {/* Score */}
-          {jc.match_score !== null && jc.match_score !== undefined && (
-            <div className="text-right">
-              <div className={cn("text-2xl font-bold", getScoreColor(jc.match_score))}>
-                {Math.round(jc.match_score)}
+          <div className="flex flex-col items-end gap-2">
+            {jc.match_score !== null && jc.match_score !== undefined && (
+              <div className={cn("flex items-center gap-2 px-3 py-1 rounded-full border font-bold text-sm shadow-sm", getScoreColor(jc.match_score))}>
+                <Sparkles className="h-3.5 w-3.5" />
+                {Math.round(jc.match_score)}% Match
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* Stats - simplified */}
-        <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
-          {githubProfile?.developer_score && (
-            <span>Dev: {githubProfile.developer_score}</span>
-          )}
-          {githubProfile?.public_repos && (
-            <span>{githubProfile.public_repos} repos</span>
-          )}
-          {candidate.followers_count > 0 && (
-            <span>{candidate.followers_count.toLocaleString()} followers</span>
-          )}
-          {evidence && (
-            <span className={cn(
-              "font-medium",
-              evidence.match_strength === "strong" && "text-green-500",
-              evidence.match_strength === "moderate" && "text-yellow-500",
-              evidence.match_strength === "weak" && "text-red-500"
-            )}>
-              {evidence.match_strength.toUpperCase()}
-            </span>
-          )}
-        </div>
-
-        {/* Skills - max 4 */}
-        {candidate.skills_extracted && candidate.skills_extracted.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-3">
-            {candidate.skills_extracted.slice(0, 4).map((skill) => (
-              <span key={skill} className="text-[10px] px-2 py-0.5 bg-secondary text-secondary-foreground rounded">
-                {skill}
-              </span>
-            ))}
-            {candidate.skills_extracted.length > 4 && (
-              <span className="text-[10px] text-muted-foreground">+{candidate.skills_extracted.length - 4}</span>
             )}
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="p-5 pt-0 space-y-6">
+        {/* Skills */}
+        <div className="flex flex-wrap gap-1.5">
+           {candidate.skills_extracted?.slice(0, 4).map(skill => (
+             <Badge key={skill} variant="secondary" className="font-normal text-xs px-2.5 py-0.5 bg-secondary/60 hover:bg-secondary">
+               {skill}
+             </Badge>
+           ))}
+           {(candidate.skills_extracted?.length || 0) > 4 && (
+             <Badge variant="outline" className="font-normal text-[10px] px-2 h-5">
+               +{(candidate.skills_extracted?.length || 0) - 4}
+             </Badge>
+           )}
+        </div>
+
+        {/* AI Analysis Grid */}
+        {evidence && (
+          <div className="space-y-4 rounded-xl bg-muted/30 p-4 border border-border/50">
+             {evidence.why_matched && (
+               <div className="space-y-1.5">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Zap className="h-3.5 w-3.5" /> AI Summary
+                  </h4>
+                  <p className="text-sm leading-relaxed text-foreground/90">{evidence.why_matched}</p>
+               </div>
+             )}
+
+             <Separator className="bg-border/50" />
+
+             <div className="grid gap-4 md:grid-cols-2">
+                {/* Pros */}
+                <div className="space-y-2">
+                   <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                     <ThumbsUp className="h-3.5 w-3.5" /> Pros
+                   </h4>
+                   <div className="space-y-2">
+                      {evidence.green_flags?.map((flag, i) => (
+                        <EvidenceItemWithFeedback key={`green-${i}`} content={flag} itemType="green_flags" itemIndex={i} jobId={jobId} candidateId={candidate.id} variant="green" />
+                      ))}
+                      {(!evidence.green_flags || evidence.green_flags.length === 0) && (
+                        <span className="text-xs text-muted-foreground italic">No specific pros identified.</span>
+                      )}
+                   </div>
+                </div>
+
+                {/* Cons & Signals */}
+                <div className="space-y-4">
+                   {evidence.red_flags && evidence.red_flags.length > 0 && (
+                     <div className="space-y-2">
+                       <h4 className="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                         <AlertCircle className="h-3.5 w-3.5" /> Cons
+                       </h4>
+                       <div className="space-y-2">
+                          {evidence.red_flags.map((flag, i) => (
+                            <EvidenceItemWithFeedback key={`red-${i}`} content={flag} itemType="red_flags" itemIndex={i} jobId={jobId} candidateId={candidate.id} variant="red" />
+                          ))}
+                       </div>
+                     </div>
+                   )}
+                   
+                   {evidence.signals && evidence.signals.length > 0 && (
+                     <div className="space-y-2">
+                       <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                         <Info className="h-3.5 w-3.5" /> Signals
+                       </h4>
+                       <div className="space-y-2">
+                          {evidence.signals.map((signal, i) => (
+                            <EvidenceItemWithFeedback key={`signal-${i}`} content={signal} itemType="signals" itemIndex={i} jobId={jobId} candidateId={candidate.id} variant="neutral" />
+                          ))}
+                       </div>
+                     </div>
+                   )}
+                </div>
+             </div>
+
+             <div className="flex items-center justify-end pt-2">
+                <Button variant="ghost" size="sm" onClick={handleRegenerate} disabled={isRegenerating} className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground">
+                  <RefreshCw className={cn("h-3 w-3", isRegenerating && "animate-spin")} />
+                  Regenerate Analysis
+                </Button>
+             </div>
           </div>
         )}
+      </CardContent>
 
-        {/* Actions - always visible, simple */}
-        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border">
-          <Button
-            size="sm"
-            variant={isShortlisted ? "default" : "outline"}
-            className={cn(
-              "h-8 text-xs flex-1",
-              isShortlisted ? "bg-green-600 hover:bg-green-700 text-white" : "hover:bg-green-500/10 hover:text-green-500 hover:border-green-500"
-            )}
-            onClick={() => trackAction("shortlist")}
-            disabled={actionLoading !== null || isShortlisted}
-          >
-            <Check className="h-3 w-3 mr-1" />
-            {isShortlisted ? "Shortlisted" : "Shortlist"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs flex-1 hover:bg-yellow-500/10 hover:text-yellow-500 hover:border-yellow-500"
-            onClick={() => trackAction("contact")}
-            disabled={actionLoading !== null}
-          >
-            <Mail className="h-3 w-3 mr-1" />
-            Contact
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className={cn(
-              "h-8 text-xs",
-              isRejected ? "bg-red-600/20 text-red-500 border-red-500" : "hover:bg-red-500/10 hover:text-red-500 hover:border-red-500"
-            )}
-            onClick={() => trackAction("reject")}
-            disabled={actionLoading !== null || isRejected}
-          >
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Evidence - collapsible */}
-      {evidence && (
-        <Collapsible open={expanded} onOpenChange={setExpanded}>
-          <CollapsibleTrigger asChild>
-            <button className="w-full px-4 py-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
-              <span>View Evidence</span>
-              {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="px-4 pb-4 pt-2 border-t border-border space-y-3 text-sm">
-              {evidence.why_matched && (
-                <div>
-                  <div className="text-[10px] text-muted-foreground uppercase mb-1">Why</div>
-                  <p className="text-foreground text-xs leading-relaxed">{evidence.why_matched}</p>
-                </div>
-              )}
-
-              {/* Green Flags with feedback */}
-              {evidence.green_flags && evidence.green_flags.length > 0 && (
-                <div>
-                  <div className="text-[10px] text-green-500 uppercase mb-1">✓ Green Flags</div>
-                  <ul className="space-y-1">
-                    {evidence.green_flags.map((flag: string, i: number) => (
-                      <EvidenceItemWithFeedback
-                        key={i}
-                        content={flag}
-                        itemType="green_flags"
-                        itemIndex={i}
-                        jobId={jobId}
-                        candidateId={candidate.id}
-                        variant="green"
-                      />
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Red Flags with feedback */}
-              {evidence.red_flags && evidence.red_flags.length > 0 && (
-                <div>
-                  <div className="text-[10px] text-red-500 uppercase mb-1">✗ Red Flags</div>
-                  <ul className="space-y-1">
-                    {evidence.red_flags.map((flag: string, i: number) => (
-                      <EvidenceItemWithFeedback
-                        key={i}
-                        content={flag}
-                        itemType="red_flags"
-                        itemIndex={i}
-                        jobId={jobId}
-                        candidateId={candidate.id}
-                        variant="red"
-                      />
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Signals with feedback */}
-              {evidence.signals && evidence.signals.length > 0 && (
-                <div>
-                  <div className="text-[10px] text-amber-500 uppercase mb-1">⚡ Signals</div>
-                  <ul className="space-y-1">
-                    {evidence.signals.map((signal: string, i: number) => (
-                      <EvidenceItemWithFeedback
-                        key={i}
-                        content={signal}
-                        itemType="signals"
-                        itemIndex={i}
-                        jobId={jobId}
-                        candidateId={candidate.id}
-                        variant="neutral"
-                      />
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {evidence.outreach_hook && (
-                <div>
-                  <div className="text-[10px] text-muted-foreground uppercase mb-1">Outreach</div>
-                  <p className="text-muted-foreground text-xs italic">&ldquo;{evidence.outreach_hook}&rdquo;</p>
-                </div>
-              )}
-              
-              {/* Regenerate button */}
-              <div className="pt-2 border-t border-border/50 flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground">Rate items above • then regenerate</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={handleRegenerate}
-                  disabled={isRegenerating}
-                >
-                  {isRegenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
-                  Regenerate
-                </Button>
-              </div>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-    </div>
+      <CardFooter className="p-4 bg-muted/10 border-t border-border/50 flex items-center justify-between gap-4">
+         <Button 
+           variant="ghost" 
+           size="sm" 
+           className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+           onClick={() => trackAction("reject")}
+           disabled={actionLoading !== null || isRejected}
+         >
+           <X className="h-4 w-4 mr-2" />
+           Pass
+         </Button>
+         
+         <div className="flex items-center gap-2">
+           <Button 
+             variant="outline" 
+             size="sm"
+             className="bg-background hover:bg-secondary/50 border-border"
+             onClick={() => trackAction("contact")}
+             disabled={actionLoading !== null}
+           >
+             <Mail className="h-4 w-4 mr-2" />
+             Contact
+           </Button>
+           <Button 
+             variant={isShortlisted ? "secondary" : "default"}
+             size="sm"
+             className={cn(isShortlisted ? "bg-emerald-100 text-emerald-900 hover:bg-emerald-200 dark:bg-emerald-900 dark:text-emerald-100" : "bg-primary text-primary-foreground hover:bg-primary/90")}
+             onClick={() => trackAction("shortlist")}
+             disabled={actionLoading !== null || isShortlisted}
+           >
+             <Check className="h-4 w-4 mr-2" />
+             {isShortlisted ? "Shortlisted" : "Shortlist"}
+           </Button>
+         </div>
+      </CardFooter>
+    </Card>
   )
 }
+
+// --- Main Page Component ---
 
 export default function JobDetailPage() {
   const params = useParams()
@@ -451,6 +402,7 @@ export default function JobDetailPage() {
   // Sourcing state
   const [sourcingOpen, setSourcingOpen] = useState(false)
   const [sourcingQuery, setSourcingQuery] = useState("")
+  const [sourcingCount, setSourcingCount] = useState(15)
   const [sourcingLoading, setSourcingLoading] = useState(false)
   
   // Filter state
@@ -560,17 +512,17 @@ export default function JobDetailPage() {
     try {
       const request: GitHubSourceRequest = {
         search_query: sourcingQuery,
-        max_results: 15,
+        max_results: sourcingCount,
         min_followers: 10,
         min_repos: 5,
         min_dev_score: 50,
       }
       const result = await jobsApi.sourceGitHub(jobId, request)
-      toast.success("Sourcing started...")
+      toast.success(`Sourcing ${sourcingCount} candidates...`)
       
       const success = await pollTask(result.task_id)
       if (success) {
-        toast.success("Sourcing complete!")
+        toast.success("Sourcing complete! Candidates added to your list.")
         await fetchCandidates()
         setSourcingOpen(false)
       }
@@ -581,7 +533,6 @@ export default function JobDetailPage() {
     }
   }
 
-  // Filter candidates
   const filteredCandidates = candidates
     .filter((jc) => {
       if (stageFilter === "all") return true
@@ -597,200 +548,132 @@ export default function JobDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex-1 p-8">
-        <Skeleton className="h-8 w-64 mb-4" />
-        <Skeleton className="h-4 w-96 mb-8" />
-        <div className="grid gap-4 md:grid-cols-3">
-          <Skeleton className="h-48" />
-          <Skeleton className="h-48" />
-          <Skeleton className="h-48" />
+      <div className="max-w-5xl mx-auto p-8 space-y-8">
+        <div className="space-y-4">
+          <Skeleton className="h-12 w-1/3" />
+          <Skeleton className="h-6 w-1/4" />
+        </div>
+        <div className="space-y-6">
+           {[1, 2, 3].map(i => <Skeleton key={i} className="h-[400px] w-full rounded-xl" />)}
         </div>
       </div>
     )
   }
 
-  if (!job) {
-    return (
-      <div className="flex-1 p-8">
-        <p className="text-zinc-500">Job not found.</p>
-      </div>
-    )
-  }
+  if (!job) return <div className="p-8 text-center">Job not found</div>
 
   return (
-    <div className="flex-1 flex flex-col">
-      {/* Header */}
-      <div className="border-b border-border px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => router.push("/jobs")}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div>
-              <h1 className="text-xl font-semibold text-foreground">{job.title}</h1>
-              <p className="text-sm text-muted-foreground">{stats.total} candidates · {stats.shortlisted} shortlisted</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Sheet open={sourcingOpen} onOpenChange={setSourcingOpen}>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Search className="h-4 w-4 mr-2" />
-                  Source
-                </Button>
-              </SheetTrigger>
-              <SheetContent>
-                <SheetHeader>
-                  <SheetTitle>Source from GitHub</SheetTitle>
-                  <SheetDescription>Find developers matching your requirements</SheetDescription>
-                </SheetHeader>
-                <div className="mt-6 space-y-4">
-                  <Input
-                    value={sourcingQuery}
-                    onChange={(e) => setSourcingQuery(e.target.value)}
-                    placeholder="e.g. machine learning engineer"
-                  />
-                  <Button onClick={handleSourceGitHub} disabled={sourcingLoading} className="w-full">
-                    {sourcingLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Github className="h-4 w-4 mr-2" />}
-                    {sourcingLoading ? "Searching..." : "Find Developers"}
-                  </Button>
-                </div>
-              </SheetContent>
-            </Sheet>
-
-            <Button
-              onClick={runFullPipeline}
-              disabled={pipelineRunning || candidates.length === 0}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {pipelineRunning ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {pipelineStep}
-                </>
-              ) : (
-                <>
-                  <Zap className="h-4 w-4 mr-2" />
-                  Run AI Pipeline
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {pipelineRunning && (
-          <Progress value={pipelineProgress} className="h-1 mt-4" />
-        )}
-      </div>
-
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
-        <div className="w-64 border-r border-border p-4 overflow-y-auto">
-          <h3 className="text-xs font-medium text-muted-foreground uppercase mb-3">Requirements</h3>
-          {job.requirements ? (
-            <p className="text-xs text-foreground whitespace-pre-wrap">{job.requirements}</p>
-          ) : (
-            <p className="text-xs text-muted-foreground italic">No requirements</p>
-          )}
-          
-          {job.keywords && job.keywords.length > 0 && (
-            <div className="mt-4">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase mb-2">Keywords</h3>
-              <div className="flex flex-wrap gap-1">
-                {job.keywords.map((kw) => (
-                  <span key={kw} className="text-[10px] px-2 py-0.5 bg-secondary text-secondary-foreground rounded">
-                    {kw}
-                  </span>
-                ))}
+    <div className="min-h-screen bg-muted/5">
+      {/* Sticky Header */}
+      <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border/50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" onClick={() => router.push("/jobs")} className="-ml-2 h-9 w-9">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div>
+                <h1 className="text-lg font-bold leading-none tracking-tight flex items-center gap-2">
+                   {job.title}
+                </h1>
+                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                   <Briefcase className="h-3 w-3" /> {job.keywords?.slice(0, 3).join(", ")}
+                </p>
               </div>
             </div>
-          )}
 
-          <Separator className="my-4" />
-
-          {/* Pipeline status */}
-          <h3 className="text-xs font-medium text-muted-foreground uppercase mb-3">Pipeline</h3>
-          <div className="space-y-2 text-xs">
             <div className="flex items-center gap-2">
-              <CheckCircle className={cn("h-4 w-4", stats.total > 0 ? "text-green-500" : "text-muted-foreground")} />
-              <span className={stats.total > 0 ? "text-foreground" : "text-muted-foreground"}>Sourced ({stats.total})</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className={cn("h-4 w-4", stats.shortlisted > 0 ? "text-green-500" : "text-muted-foreground")} />
-              <span className={stats.shortlisted > 0 ? "text-foreground" : "text-muted-foreground"}>Shortlisted ({stats.shortlisted})</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Candidates */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Filters */}
-          <div className="px-6 py-3 border-b border-border flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Button
-                variant={stageFilter === "all" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setStageFilter("all")}
-                className="text-xs"
-              >
-                All ({candidates.length})
-              </Button>
-              <Button
-                variant={stageFilter === "shortlisted" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setStageFilter("shortlisted")}
-                className="text-xs"
-              >
-                Shortlisted ({stats.shortlisted})
-              </Button>
-              <Button
-                variant={stageFilter === "rejected" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setStageFilter("rejected")}
-                className="text-xs"
-              >
-                Rejected ({stats.rejected})
-              </Button>
-            </div>
-            <Button variant="ghost" size="sm" onClick={fetchCandidates} disabled={loadingCandidates}>
-              <RefreshCw className={cn("h-4 w-4", loadingCandidates && "animate-spin")} />
-            </Button>
-          </div>
-
-          {/* Candidates grid */}
-          <ScrollArea className="flex-1">
-            <div className="p-6">
-              {filteredCandidates.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <Users className="h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-4">
-                    {candidates.length === 0 ? "No candidates yet" : "No candidates match filter"}
-                  </p>
-                  {candidates.length === 0 && (
-                    <Button onClick={() => setSourcingOpen(true)} variant="outline">
-                      <Github className="h-4 w-4 mr-2" />
-                      Source Candidates
+              <Sheet open={sourcingOpen} onOpenChange={setSourcingOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9">
+                    <Search className="h-4 w-4 mr-2" />
+                    Source
+                  </Button>
+                </SheetTrigger>
+                <SheetContent>
+                  <SheetHeader>
+                    <SheetTitle>Source from GitHub</SheetTitle>
+                    <SheetDescription>Find developers matching your requirements</SheetDescription>
+                  </SheetHeader>
+                  <div className="mt-6 space-y-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Search Query</label>
+                      <Input value={sourcingQuery} onChange={(e) => setSourcingQuery(e.target.value)} placeholder="e.g. machine learning engineer" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Quantity</label>
+                      <Input type="number" min={1} max={50} value={sourcingCount} onChange={(e) => setSourcingCount(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))} />
+                    </div>
+                    <Button onClick={handleSourceGitHub} disabled={sourcingLoading} className="w-full">
+                      {sourcingLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Github className="h-4 w-4 mr-2" />}
+                      {sourcingLoading ? "Searching..." : "Find Candidates"}
                     </Button>
-                  )}
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {filteredCandidates.map((jc) => (
-                    <CandidateCard
-                      key={jc.id}
-                      jc={jc}
-                      jobId={jobId}
-                      onAction={fetchCandidates}
-                    />
-                  ))}
-                </div>
-              )}
+                  </div>
+                </SheetContent>
+              </Sheet>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className={cn("h-9", pipelineRunning ? "bg-muted text-foreground" : "bg-primary text-primary-foreground")}>
+                     {pipelineRunning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2 fill-current" />}
+                     {pipelineRunning ? pipelineStep : "AI Pipeline"}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                   <DropdownMenuItem onClick={runFullPipeline} disabled={pipelineRunning || candidates.length === 0}>
+                      <Zap className="h-4 w-4 mr-2 text-indigo-500" />
+                      Run Analysis & Scoring
+                   </DropdownMenuItem>
+                   <DropdownMenuItem onClick={fetchCandidates} disabled={loadingCandidates}>
+                      <RefreshCw className={cn("h-4 w-4 mr-2", loadingCandidates && "animate-spin")} />
+                      Refresh Data
+                   </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-          </ScrollArea>
+          </div>
+          {pipelineRunning && <Progress value={pipelineProgress} className="h-0.5 absolute bottom-0 left-0 right-0 rounded-none" />}
         </div>
-      </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        {/* Stats & Filters */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+           <Tabs value={stageFilter} onValueChange={(v) => setStageFilter(v as PipelineStage)} className="w-full sm:w-auto">
+              <TabsList className="grid w-full grid-cols-3 sm:w-auto">
+                 <TabsTrigger value="all">All ({stats.total})</TabsTrigger>
+                 <TabsTrigger value="shortlisted">Shortlist ({stats.shortlisted})</TabsTrigger>
+                 <TabsTrigger value="rejected">Rejected ({stats.rejected})</TabsTrigger>
+              </TabsList>
+           </Tabs>
+           
+           <div className="text-sm text-muted-foreground hidden sm:block">
+              Showing {filteredCandidates.length} candidates
+           </div>
+        </div>
+
+        {/* Candidates Feed */}
+        <div className="space-y-6">
+           {filteredCandidates.length === 0 ? (
+              <div className="text-center py-20 border-2 border-dashed rounded-xl bg-background/50">
+                 <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                 <h3 className="text-lg font-medium">No candidates found</h3>
+                 <p className="text-muted-foreground mt-1">
+                    {candidates.length === 0 ? "Source candidates to get started." : "Adjust your filters to see more."}
+                 </p>
+                 {candidates.length === 0 && (
+                    <Button variant="outline" onClick={() => setSourcingOpen(true)} className="mt-4">
+                       Source Candidates
+                    </Button>
+                 )}
+              </div>
+           ) : (
+              filteredCandidates.map(jc => (
+                 <CandidateCard key={jc.id} jc={jc} jobId={jobId} onAction={fetchCandidates} />
+              ))
+           )}
+        </div>
+      </main>
     </div>
   )
 }

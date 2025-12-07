@@ -24,7 +24,6 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar"
 import { NavUser } from "@/components/nav-user"
-
 import { GrokLogo } from "@/components/ui/grok-logo"
 
 // Menu items.

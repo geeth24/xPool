@@ -10,3 +10,8 @@ yarn-error.log*
 *.pem
 dist
 build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python

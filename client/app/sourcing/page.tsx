@@ -29,7 +29,7 @@ import { toast } from "sonner"
 import { jobsApi, tasksApi, Job, GitHubSourceRequest } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Clock, Loader2, XCircle, Github, Search } from "lucide-react"
+import { CheckCircle, Clock, Loader2, XCircle, Github, Search, Globe, Code2, Users, SlidersHorizontal, ArrowRight } from "lucide-react"
 
 const sourcingFormSchema = z.object({
   jobId: z.string().min(1, "Please select a job."),
@@ -104,7 +104,6 @@ export default function SourcingPage() {
     }
   }, [preselectedJobId, form])
 
-  // auto-fill search query from job title
   const selectedJobId = form.watch("jobId")
   React.useEffect(() => {
     if (selectedJobId) {
@@ -115,7 +114,6 @@ export default function SourcingPage() {
     }
   }, [selectedJobId, jobs, form])
 
-  // poll task status
   React.useEffect(() => {
     if (!taskId) return
 
@@ -180,161 +178,151 @@ export default function SourcingPage() {
     switch (taskStatus) {
       case "PENDING":
       case "STARTED":
-        return <Loader2 className="h-4 w-4 animate-spin" />
+        return <Loader2 className="h-5 w-5 animate-spin text-primary" />
       case "SUCCESS":
-        return <CheckCircle className="h-4 w-4 text-green-500" />
+        return <CheckCircle className="h-5 w-5 text-emerald-500" />
       case "FAILURE":
-        return <XCircle className="h-4 w-4 text-red-500" />
+        return <XCircle className="h-5 w-5 text-rose-500" />
       default:
-        return <Clock className="h-4 w-4" />
+        return <Clock className="h-5 w-5 text-muted-foreground" />
     }
   }
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
+    <div className="flex-1 space-y-8 p-8 pt-6 max-w-7xl mx-auto w-full">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Github className="h-8 w-8" />
+          <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg text-primary">
+               <Github className="h-6 w-6" />
+            </div>
             Developer Sourcing
           </h2>
-          <p className="text-muted-foreground">
-            Find verified developers on GitHub, enriched with X/Twitter data.
+          <p className="text-muted-foreground mt-2 max-w-2xl">
+            Find verified developers on GitHub, automatically enriched with X/Twitter data and AI analysis.
           </p>
         </div>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <div className="col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Search className="h-5 w-5" />
+
+      <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
+        <div className="space-y-6">
+          <Card className="border-border/60 shadow-sm">
+            <CardHeader className="pb-4 border-b">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <SlidersHorizontal className="h-5 w-5 text-muted-foreground" />
                 Search Configuration
               </CardTitle>
               <CardDescription>
-                Search GitHub for developers matching your criteria.
+                Define your ideal candidate profile criteria.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               {loadingJobs ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-20 w-full" />
+                <div className="space-y-6">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <div className="grid grid-cols-2 gap-4">
+                     <Skeleton className="h-12 w-full" />
+                     <Skeleton className="h-12 w-full" />
+                  </div>
                 </div>
               ) : (
                 <Form {...form}>
-                  <form
-                    onSubmit={form.handleSubmit(onSubmit)}
-                    className="space-y-6"
-                  >
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                     <FormField
                       control={form.control}
                       name="jobId"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Target Job</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            value={field.value}
-                          >
+                          <FormLabel>Target Job Pipeline</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
-                              <SelectTrigger>
+                              <SelectTrigger className="h-11">
                                 <SelectValue placeholder="Select a job position" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
                               {jobs.map((job) => (
-                                <SelectItem key={job.id} value={job.id}>
-                                  {job.title}
-                                </SelectItem>
+                                <SelectItem key={job.id} value={job.id}>{job.title}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
-                          <FormDescription>
-                            Candidates will be added to this job pipeline.
-                          </FormDescription>
+                          <FormDescription>Candidates will be added to this job.</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="searchQuery"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Search Query</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="e.g. machine learning engineer, iOS developer, fullstack"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Keywords to search for in GitHub user profiles.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-4">
                       <FormField
                         control={form.control}
-                        name="language"
+                        name="searchQuery"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Primary Language</FormLabel>
-                            <Select
-                              onValueChange={(value) => field.onChange(value === "any" ? "" : value)}
-                              value={field.value || "any"}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Any language" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="any">Any language</SelectItem>
-                                {POPULAR_LANGUAGES.map((lang) => (
-                                  <SelectItem key={lang} value={lang}>
-                                    {lang.charAt(0).toUpperCase() + lang.slice(1)}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="location"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Location (Optional)</FormLabel>
+                            <FormLabel>Keywords</FormLabel>
                             <FormControl>
-                              <Input
-                                placeholder="e.g. San Francisco, London"
-                                {...field}
-                              />
+                              <div className="relative">
+                                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                <Input placeholder="e.g. machine learning engineer, iOS developer" {...field} className="pl-9 h-11" />
+                              </div>
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="language"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Primary Language</FormLabel>
+                              <Select onValueChange={(value) => field.onChange(value === "any" ? "" : value)} value={field.value || "any"}>
+                                <FormControl>
+                                  <SelectTrigger className="h-11">
+                                    <SelectValue placeholder="Any language" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="any">Any language</SelectItem>
+                                  {POPULAR_LANGUAGES.map((lang) => (
+                                    <SelectItem key={lang} value={lang}>{lang.charAt(0).toUpperCase() + lang.slice(1)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="location"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Location</FormLabel>
+                              <FormControl>
+                                <div className="relative">
+                                   <Globe className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                   <Input placeholder="e.g. San Francisco" {...field} className="pl-9 h-11" />
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t">
                       <FormField
                         control={form.control}
                         name="maxResults"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Max Results</FormLabel>
+                            <FormLabel>Max Candidates</FormLabel>
                             <FormControl>
-                              <Input type="number" {...field} />
+                              <Input type="number" {...field} className="h-10" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -347,7 +335,7 @@ export default function SourcingPage() {
                           <FormItem>
                             <FormLabel>Min Followers</FormLabel>
                             <FormControl>
-                              <Input type="number" {...field} />
+                              <Input type="number" {...field} className="h-10" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -360,7 +348,7 @@ export default function SourcingPage() {
                           <FormItem>
                             <FormLabel>Min Repos</FormLabel>
                             <FormControl>
-                              <Input type="number" {...field} />
+                              <Input type="number" {...field} className="h-10" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -370,61 +358,30 @@ export default function SourcingPage() {
 
                     <FormField
                       control={form.control}
-                      name="minDevScore"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Min Developer Score ({field.value})</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="range"
-                              min="0"
-                              max="100"
-                              {...field}
-                              className="cursor-pointer"
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Score based on repos, stars, and activity. Higher = more active developers.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
                       name="requireXProfile"
                       render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4 bg-muted/20">
                           <div className="space-y-0.5">
-                            <FormLabel className="text-base">
-                              Require X/Twitter Profile
-                            </FormLabel>
-                            <FormDescription>
-                              Only include developers who have an X profile linked.
-                              Useful for outreach.
-                            </FormDescription>
+                            <FormLabel className="text-base font-medium">Require X/Twitter Profile</FormLabel>
+                            <FormDescription>Only include developers who have a linked X profile for AI analysis.</FormDescription>
                           </div>
                           <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
                           </FormControl>
                         </FormItem>
                       )}
                     />
 
-                    <Button type="submit" disabled={submitting} className="w-full">
+                    <Button type="submit" disabled={submitting} className="w-full h-12 text-base font-medium bg-primary hover:bg-primary/90">
                       {submitting ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Starting...
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          Sourcing Candidates...
                         </>
                       ) : (
                         <>
-                          <Github className="mr-2 h-4 w-4" />
-                          Start GitHub Sourcing
+                          Start Sourcing
+                          <ArrowRight className="ml-2 h-5 w-5" />
                         </>
                       )}
                     </Button>
@@ -435,119 +392,95 @@ export default function SourcingPage() {
           </Card>
 
           {taskId && (
-            <Card className="mt-4">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className="border-primary/20 bg-primary/5 animate-in fade-in slide-in-from-bottom-4">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-3 text-lg">
                   {getStatusIcon()}
-                  Task Status
+                  Sourcing Status
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Task ID:</span>
-                    <code className="text-xs bg-muted px-2 py-1 rounded">
-                      {taskId}
-                    </code>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground font-medium">Task ID:</span>
+                    <code className="bg-background px-2 py-1 rounded border font-mono text-xs">{taskId}</code>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Status:</span>
-                    <Badge
-                      variant={
-                        taskStatus === "SUCCESS"
-                          ? "default"
-                          : taskStatus === "FAILURE"
-                            ? "destructive"
-                            : "secondary"
-                      }
-                    >
-                      {taskStatus}
-                    </Badge>
-                  </div>
-                  {taskResult && (
-                    <div className="mt-4 space-y-2">
-                      <span className="text-muted-foreground">Result:</span>
-                      <div className="grid grid-cols-3 gap-4 mt-2">
-                        <div className="bg-muted rounded-lg p-4 text-center">
-                          <div className="text-2xl font-bold text-green-500">
-                            {(taskResult as { candidates_added?: number }).candidates_added || 0}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Added</div>
+                  
+                  {taskResult ? (
+                    <div className="grid grid-cols-3 gap-4 pt-2">
+                      <div className="bg-background border rounded-lg p-3 text-center shadow-sm">
+                        <div className="text-2xl font-bold text-emerald-600">
+                          {(taskResult as { candidates_added?: number }).candidates_added || 0}
                         </div>
-                        <div className="bg-muted rounded-lg p-4 text-center">
-                          <div className="text-2xl font-bold text-yellow-500">
-                            {(taskResult as { candidates_skipped?: number }).candidates_skipped || 0}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Skipped</div>
+                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mt-1">Added</div>
+                      </div>
+                      <div className="bg-background border rounded-lg p-3 text-center shadow-sm">
+                        <div className="text-2xl font-bold text-amber-500">
+                          {(taskResult as { candidates_skipped?: number }).candidates_skipped || 0}
                         </div>
-                        <div className="bg-muted rounded-lg p-4 text-center">
-                          <div className="text-2xl font-bold text-blue-500">
-                            {(taskResult as { candidates_with_x?: number }).candidates_with_x || 0}
-                          </div>
-                          <div className="text-sm text-muted-foreground">With X</div>
+                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mt-1">Skipped</div>
+                      </div>
+                      <div className="bg-background border rounded-lg p-3 text-center shadow-sm">
+                        <div className="text-2xl font-bold text-blue-500">
+                          {(taskResult as { candidates_with_x?: number }).candidates_with_x || 0}
                         </div>
+                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mt-1">Has X</div>
                       </div>
                     </div>
+                  ) : (
+                     <div className="flex items-center gap-2 text-sm text-muted-foreground bg-background/50 p-3 rounded-md border border-dashed">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Waiting for results...
+                     </div>
                   )}
                 </div>
               </CardContent>
             </Card>
           )}
         </div>
-        <div className="space-y-4">
-          <Card>
+
+        {/* Sidebar Info */}
+        <div className="space-y-6">
+          <Card className="bg-muted/30 border-none shadow-none">
             <CardHeader>
-              <CardTitle>How it works</CardTitle>
+              <CardTitle className="text-base">Sourcing Process</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-col space-y-2">
-                <span className="font-semibold flex items-center gap-2">
-                  <Badge variant="outline">1</Badge>
-                  GitHub Search
-                </span>
-                <p className="text-sm text-muted-foreground">
-                  Search GitHub for developers matching your query, language, and location filters.
-                </p>
+            <CardContent className="space-y-6">
+              <div className="relative pl-6 border-l-2 border-muted">
+                <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-background border-2 border-primary" />
+                <h4 className="text-sm font-semibold">GitHub Search</h4>
+                <p className="text-xs text-muted-foreground mt-1">Finds developers matching language, location, and keywords.</p>
               </div>
-              <div className="flex flex-col space-y-2">
-                <span className="font-semibold flex items-center gap-2">
-                  <Badge variant="outline">2</Badge>
-                  Profile Analysis
-                </span>
-                <p className="text-sm text-muted-foreground">
-                  Analyze their repos, languages, stars, and contributions to calculate a developer score.
-                </p>
+              <div className="relative pl-6 border-l-2 border-muted">
+                <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-background border-2 border-muted-foreground" />
+                <h4 className="text-sm font-semibold">Profile Analysis</h4>
+                <p className="text-xs text-muted-foreground mt-1">Evaluates repo quality, contribution history, and influence.</p>
               </div>
-              <div className="flex flex-col space-y-2">
-                <span className="font-semibold flex items-center gap-2">
-                  <Badge variant="outline">3</Badge>
-                  X Enrichment
-                </span>
-                <p className="text-sm text-muted-foreground">
-                  If they have X/Twitter linked, fetch their profile and analyze tweets with AI.
-                </p>
+              <div className="relative pl-6 border-l-2 border-muted">
+                <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-background border-2 border-muted-foreground" />
+                <h4 className="text-sm font-semibold">X Enrichment</h4>
+                <p className="text-xs text-muted-foreground mt-1">Cross-references data with X/Twitter for personality insights.</p>
               </div>
-              <div className="flex flex-col space-y-2">
-                <span className="font-semibold flex items-center gap-2">
-                  <Badge variant="outline">4</Badge>
-                  Pipeline
-                </span>
-                <p className="text-sm text-muted-foreground">
-                  Qualified developers are added to your job pipeline with match scores.
-                </p>
+              <div className="relative pl-6 border-l-2 border-muted">
+                <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-background border-2 border-muted-foreground" />
+                <h4 className="text-sm font-semibold">Pipeline Entry</h4>
+                <p className="text-xs text-muted-foreground mt-1">Qualified candidates are scored and added to your job list.</p>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Search Tips</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-muted-foreground">
-              <p>• Use specific role titles: &quot;machine learning engineer&quot;</p>
-              <p>• Filter by language for tech-specific roles</p>
-              <p>• Higher min repos = more experienced developers</p>
-              <p>• Location filter uses GitHub profile location</p>
-            </CardContent>
+
+          <Card className="bg-amber-50/50 dark:bg-amber-900/10 border-amber-200/50 dark:border-amber-800/30">
+             <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                   <Code2 className="h-4 w-4" />
+                   Pro Tips
+                </CardTitle>
+             </CardHeader>
+             <CardContent className="text-xs space-y-2 text-amber-700/80 dark:text-amber-300/80">
+                <p>• Use specific tech stacks in keywords (e.g. &quot;Next.js&quot; instead of just &quot;React&quot;).</p>
+                <p>• Set higher &quot;Min Repos&quot; (10+) for senior roles.</p>
+                <p>• Location filter is strict; try broader regions if results are low.</p>
+             </CardContent>
           </Card>
         </div>
       </div>
