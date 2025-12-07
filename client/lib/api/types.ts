@@ -81,7 +81,7 @@ export interface Job {
 // Candidate types
 export interface Candidate {
   id: string
-  // X/Twitter identifiers (nullable for GitHub-only)
+  // X identifiers (nullable for GitHub-only)
   x_user_id?: string
   x_username?: string
   // GitHub identifiers (nullable for X-only)
@@ -244,7 +244,7 @@ export interface CandidateSearchResponse {
   query?: string
 }
 
-// Sourcing types (X/Twitter based - legacy)
+// Sourcing types (X based - legacy)
 export interface SourceRequest {
   max_results?: number
   regions?: string[]

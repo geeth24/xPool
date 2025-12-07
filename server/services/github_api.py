@@ -450,17 +450,17 @@ class GitHubAPIClient:
         return dict(sorted(language_counts.items(), key=lambda x: x[1], reverse=True))
 
     def extract_x_username(self, user_profile: Dict) -> Optional[str]:
-        """Extract X/Twitter username from GitHub profile."""
-        # check twitter_username field (GitHub's official field)
-        twitter = user_profile.get("twitter_username")
-        if twitter:
-            return twitter
+        """Extract X username from GitHub profile."""
+        # check twitter_username field (GitHub's official API field name)
+        x_username = user_profile.get("twitter_username")
+        if x_username:
+            return x_username
 
-        # check bio for twitter/x links
+        # check bio for X/twitter links
         bio = user_profile.get("bio") or ""
         blog = user_profile.get("blog") or ""
 
-        # patterns to find twitter/x handles
+        # patterns to find X/twitter handles
         patterns = [
             r'(?:twitter\.com|x\.com)/(@?[\w]+)',
             r'@([\w]+)\s*(?:on\s+)?(?:twitter|x)',

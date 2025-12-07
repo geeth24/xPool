@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from "react"
 import { Send, Loader2, User, CheckCircle2, AlertCircle, Briefcase, Users, Search, FileText, ChevronRight, ChevronDown, SquareTerminal } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { motion, AnimatePresence } from "motion/react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -53,7 +54,7 @@ const TOOL_LABELS: Record<string, string> = {
   list_jobs: "Listing jobs",
   get_job_details: "Getting job details",
   create_job: "Creating job",
-  start_sourcing: "Starting X/Twitter sourcing",
+  start_sourcing: "Starting X sourcing",
   start_github_sourcing: "Starting GitHub sourcing",
   get_job_candidates: "Getting candidates",
   search_candidates: "Searching candidates",
@@ -317,190 +318,264 @@ export function ChatPanel() {
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="max-w-3xl mx-auto px-4 py-8 min-h-full flex flex-col justify-center">
-          {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center space-y-8 animate-message-in">
-              <div className="relative">
-                <GrokLogo className="size-20 text-foreground" />
-              </div>
-              
-              <div className="space-y-2 text-center">
-                <h2 className="text-3xl font-bold tracking-tight">
-                  Grok Recruiting
-                </h2>
-                <p className="text-muted-foreground text-lg max-w-md mx-auto">
-                  Powered by xAI to help you find and hire the best talent.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl pt-4">
-                {SUGGESTED_PROMPTS.map((item) => (
-                  <button
-                    key={item.label}
-                    onClick={() => item.isWizard ? setShowWizard(true) : handleSuggestedPrompt(item.prompt)}
-                    className={cn(
-                      "flex items-center gap-3 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-all text-left group",
-                      item.isWizard && "border-primary/30 bg-primary/5 hover:bg-primary/10"
-                    )}
-                  >
-                    <div className={cn(
-                      "p-2 rounded-lg text-foreground group-hover:scale-110 transition-transform",
-                      item.isWizard ? "bg-primary/20" : "bg-muted"
-                    )}>
-                      <GrokLogo className="size-4" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-sm">{item.label}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-1">
-                        {item.isWizard ? "Step-by-step sourcing setup" : item.prompt}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              {/* Sourcing Wizard */}
-              {showWizard && (
-                <div className="w-full max-w-xl mx-auto pt-6 animate-message-in">
-                  <SourcingWizard
-                    onComplete={handleWizardComplete}
-                    onCancel={handleWizardCancel}
-                  />
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-8 pb-12">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "group relative flex gap-4 mx-auto max-w-3xl animate-message-in",
-                  )}
+          <AnimatePresence mode="wait">
+            {messages.length === 0 ? (
+              <motion.div 
+                key="welcome"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+                className="flex flex-col items-center justify-center space-y-8"
+              >
+                <motion.div 
+                  className="relative"
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.1, duration: 0.5, type: "spring", stiffness: 200 }}
                 >
-                  <div
-                    className={cn(
-                      "shrink-0 size-8 rounded-full flex items-center justify-center border shadow-sm",
-                      message.role === "user"
-                        ? "bg-background border-border text-foreground"
-                        : "bg-primary text-primary-foreground border-primary"
-                    )}
-                  >
-                    {message.role === "user" ? (
-                      <User className="size-5" />
-                    ) : (
-                      <GrokLogo className="size-5" />
-                    )}
-                  </div>
+                  <GrokLogo className="size-20 text-foreground" />
+                </motion.div>
+                
+                <motion.div 
+                  className="space-y-2 text-center"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.4 }}
+                >
+                  <h2 className="text-3xl font-bold tracking-tight">
+                    Grok Recruiting
+                  </h2>
+                  <p className="text-muted-foreground text-lg max-w-md mx-auto">
+                    Powered by xAI to help you find and hire the best talent.
+                  </p>
+                </motion.div>
 
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">
-                        {message.role === "user" ? "You" : "Grok"}
-                      </span>
-                    </div>
-
-                    {message.content && (
-                      <div className="prose dark:prose-invert max-w-none text-base leading-relaxed wrap-break-word chat-markdown">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {message.content}
-                        </ReactMarkdown>
-                        {message.isStreaming && (
-                          <span className="inline-block w-1.5 h-4 ml-1 bg-primary animate-pulse align-middle" />
-                        )}
+                <motion.div 
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl pt-4"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3, duration: 0.4 }}
+                >
+                  {SUGGESTED_PROMPTS.map((item, index) => (
+                    <motion.button
+                      key={item.label}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.35 + index * 0.08, duration: 0.3 }}
+                      whileHover={{ scale: 1.02, y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => item.isWizard ? setShowWizard(true) : handleSuggestedPrompt(item.prompt)}
+                      className={cn(
+                        "flex items-center gap-3 p-4 rounded-xl glass-card text-left group",
+                        item.isWizard && "border-foreground/20"
+                      )}
+                    >
+                      <div className={cn(
+                        "p-2 rounded-lg text-foreground transition-transform group-hover:scale-110",
+                        item.isWizard ? "bg-foreground/10" : "bg-muted"
+                      )}>
+                        <GrokLogo className="size-4" />
                       </div>
-                    )}
-
-                    {message.toolCalls && message.toolCalls.length > 0 && (
-                      <div className="mt-4 space-y-3">
-                        {message.toolCalls.map((tc, idx) => (
-                          <ToolResultCard key={idx} toolCall={tc} />
-                        ))}
+                      <div>
+                        <div className="font-semibold text-sm">{item.label}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-1">
+                          {item.isWizard ? "Step-by-step sourcing setup" : item.prompt}
+                        </div>
                       </div>
-                    )}
-
-                  </div>
-                </div>
-              ))}
-
-              {/* Active sourcing tasks */}
-              {activeTasks.size > 0 && (
-                <div className="space-y-3 max-w-3xl mx-auto">
-                  {Array.from(activeTasks.values()).map(task => (
-                    <SourcingProgress
-                      key={task.taskId}
-                      taskId={task.taskId}
-                      jobTitle={task.jobTitle}
-                      searchQuery={task.searchQuery}
-                      onComplete={() => handleTaskComplete(task.taskId)}
-                      onDismiss={() => handleTaskComplete(task.taskId)}
-                    />
+                    </motion.button>
                   ))}
-                </div>
-              )}
+                </motion.div>
 
-              <div ref={bottomRef} className="h-4" />
-            </div>
-          )}
+                {/* Sourcing Wizard */}
+                <AnimatePresence>
+                  {showWizard && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                      transition={{ duration: 0.3 }}
+                      className="w-full max-w-xl mx-auto pt-6"
+                    >
+                      <SourcingWizard
+                        onComplete={handleWizardComplete}
+                        onCancel={handleWizardCancel}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            ) : (
+              <motion.div 
+                key="messages"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-8 pb-12"
+              >
+                {messages.map((message, msgIndex) => (
+                  <motion.div
+                    key={message.id}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: msgIndex === messages.length - 1 ? 0 : 0 }}
+                    className="group relative flex gap-4 mx-auto max-w-3xl"
+                  >
+                    <motion.div
+                      initial={{ scale: 0.8 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.2 }}
+                      className={cn(
+                        "shrink-0 size-8 rounded-full flex items-center justify-center border shadow-sm",
+                        message.role === "user"
+                          ? "bg-background border-border text-foreground"
+                          : "bg-foreground text-background border-foreground"
+                      )}
+                    >
+                      {message.role === "user" ? (
+                        <User className="size-4" />
+                      ) : (
+                        <GrokLogo className="size-4" />
+                      )}
+                    </motion.div>
+
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">
+                          {message.role === "user" ? "You" : "Grok"}
+                        </span>
+                      </div>
+
+                      {message.content && (
+                        <div className={cn(
+                          "prose dark:prose-invert max-w-none text-base leading-relaxed wrap-break-word chat-markdown",
+                          message.isStreaming && "streaming-text"
+                        )}>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {message.content}
+                          </ReactMarkdown>
+                        </div>
+                      )}
+
+                      {/* Only show tool results after streaming is done */}
+                      {!message.isStreaming && message.toolCalls && message.toolCalls.length > 0 && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: 0.1 }}
+                          className="mt-4 space-y-3"
+                        >
+                          {message.toolCalls.map((tc, idx) => (
+                            <ToolResultCard key={idx} toolCall={tc} />
+                          ))}
+                        </motion.div>
+                      )}
+
+                    </div>
+                  </motion.div>
+                ))}
+
+                {/* Active sourcing tasks */}
+                <AnimatePresence>
+                  {activeTasks.size > 0 && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-3 max-w-3xl mx-auto"
+                    >
+                      {Array.from(activeTasks.values()).map(task => (
+                        <SourcingProgress
+                          key={task.taskId}
+                          taskId={task.taskId}
+                          jobTitle={task.jobTitle}
+                          searchQuery={task.searchQuery}
+                          onComplete={() => handleTaskComplete(task.taskId)}
+                          onDismiss={() => handleTaskComplete(task.taskId)}
+                        />
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div ref={bottomRef} className="h-4" />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
       {/* Input Area */}
-      <div className="shrink-0 bg-background/80 backdrop-blur-xl border-t p-4 z-20">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.4 }}
+        className="shrink-0 p-4 pb-6 z-20"
+      >
         <div className="max-w-3xl mx-auto">
-          <form onSubmit={handleSubmit} className="relative group">
-            <div className={cn(
-              "relative flex items-end gap-2 p-2 rounded-2xl bg-muted/50 border border-transparent focus-within:border-primary/30 focus-within:bg-background transition-all shadow-sm",
-              isLoading && "opacity-50 pointer-events-none"
-            )}>
+          <form onSubmit={handleSubmit} className="relative">
+            <div 
+              className={cn(
+                "relative flex items-end gap-3 p-3 rounded-xl glass-card transition-all duration-200",
+                isLoading && "opacity-50 pointer-events-none"
+              )}
+            >
               <Textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask Grok anything..."
-                className="flex-1 min-h-[44px] max-h-[200px] resize-none border-0 bg-transparent focus-visible:ring-0 px-3 py-2.5 text-base placeholder:text-muted-foreground/50"
+                className="flex-1 min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:outline-none py-1 text-base placeholder:text-muted-foreground/60"
                 disabled={isLoading}
                 rows={1}
               />
-              <Button
-                type="submit"
-                size="icon"
-                disabled={!input.trim() || isLoading}
-                className={cn(
-                  "mb-1 size-8 rounded-lg transition-all",
-                  input.trim() ? "opacity-100 scale-100" : "opacity-0 scale-90"
-                )}
+              <motion.div
+                initial={false}
+                animate={{ 
+                  scale: input.trim() ? 1 : 0.9,
+                  opacity: input.trim() ? 1 : 0.5 
+                }}
+                transition={{ duration: 0.15 }}
               >
-                {isLoading ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Send className="size-4" />
-                )}
-              </Button>
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={!input.trim() || isLoading}
+                  className="size-9 rounded-lg bg-foreground text-background hover:bg-foreground/90 disabled:opacity-30"
+                >
+                  {isLoading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Send className="size-4" />
+                  )}
+                </Button>
+              </motion.div>
             </div>
-            <div className="text-center mt-2">
-              <p className="text-[10px] text-muted-foreground/40 font-medium tracking-wide uppercase">
-                Grok may make mistakes. Verify important information.
-              </p>
-            </div>
+            <p className="text-center mt-3 text-[10px] text-muted-foreground/50 font-medium tracking-wide">
+              Grok may make mistakes · Verify important information
+            </p>
           </form>
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }
 
 function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
-  const [isExpanded, setIsExpanded] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
   const result = toolCall.result
   
   // Don't show if execution and no result yet
   if (!result && toolCall.isExecuting) {
     return (
-      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50 animate-pulse">
-        <Loader2 className="size-4 animate-spin text-primary" />
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-3 p-3 rounded-lg glass-card"
+      >
+        <Loader2 className="size-4 animate-spin text-foreground" />
         <span className="text-sm text-muted-foreground">{TOOL_LABELS[toolCall.name] || "Thinking..."}</span>
-      </div>
+      </motion.div>
     )
   }
 
@@ -590,10 +665,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
                       {c.display_name || c.github_username || `@${c.x_username}`}
                     </p>
                     {(c.match_score !== undefined || c.similarity_score !== undefined) && (
-                      <span className={cn(
-                        "text-[10px] px-1.5 py-0.5 rounded font-medium",
-                        (c.match_score ?? c.similarity_score ?? 0) >= 80 ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600"
-                      )}>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-foreground/10 text-foreground/70">
                         {Math.round(c.match_score ?? c.similarity_score ?? 0)}%
                       </span>
                     )}
@@ -623,15 +695,15 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
         // progress component will show details, just show brief confirmation
         return (
           <div className="flex items-center gap-2 text-muted-foreground text-sm py-1">
-            <CheckCircle2 className="size-3.5 text-green-500" />
+            <CheckCircle2 className="size-3.5 text-foreground/60" />
             <span>Task started - tracking progress below</span>
           </div>
         )
       }
       return (
-        <div className="flex items-center gap-3 text-green-600 bg-green-500/5 p-3 rounded-lg border border-green-500/20">
-          <CheckCircle2 className="size-4" />
-          <span className="text-sm font-medium">{(result as { message?: string }).message}</span>
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-foreground/5 border border-foreground/10">
+          <CheckCircle2 className="size-4 text-foreground/70" />
+          <span className="text-sm font-medium text-foreground">{(result as { message?: string }).message}</span>
         </div>
       )
     }
@@ -647,13 +719,18 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
   }
 
   return (
-    <div className="w-full max-w-2xl my-2">
-      <div className="border rounded-xl overflow-hidden bg-background/50 backdrop-blur-sm">
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="w-full max-w-2xl my-2"
+    >
+      <div className="rounded-xl overflow-hidden glass-card">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-3 w-full p-3 bg-muted/20 hover:bg-muted/40 transition-colors text-left"
+          className="flex items-center gap-3 w-full p-3 hover:bg-foreground/5 transition-colors text-left"
         >
-          <div className="p-1.5 bg-background rounded-md shadow-sm border">
+          <div className="p-1.5 bg-foreground/5 rounded-md">
             {TOOL_ICONS[toolCall.name] || <SquareTerminal className="size-4" />}
           </div>
           <span className="text-sm font-medium">
@@ -661,7 +738,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
           </span>
           <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
             {toolCall.result?.success ? (
-              <span className="flex items-center gap-1 text-green-600">
+              <span className="flex items-center gap-1 text-foreground/70">
                 <CheckCircle2 className="size-3" />
                 Done
               </span>
@@ -670,16 +747,31 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
                 Completed
               </span>
             )}
-            {isExpanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+            <motion.div
+              animate={{ rotate: isExpanded ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ChevronDown className="size-3" />
+            </motion.div>
           </div>
         </button>
         
-        {isExpanded && (
-          <div className="p-3 border-t bg-background/30">
-            {renderContent()}
-          </div>
-        )}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="p-3 border-t border-border/30">
+                {renderContent()}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </div>
+    </motion.div>
   )
 }

@@ -240,7 +240,7 @@ export function EvidenceCardComponent({
       const result = await jobsApi.regenerateEvidence(jobId, candidateId)
       toast.success(`Evidence regenerated using ${result.feedback_used} feedback examples`)
       if (onEvidenceUpdated && result.evidence) {
-        onEvidenceUpdated(result.evidence as EvidenceCardType)
+        onEvidenceUpdated(result.evidence)
       }
     } catch (error) {
       console.error("Failed to regenerate evidence:", error)

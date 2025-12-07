@@ -109,7 +109,7 @@ class CandidateUpdate(BaseModel):
 
 class CandidateResponse(BaseModel):
     id: str
-    # X/Twitter identifiers (nullable for GitHub-only candidates)
+    # X identifiers (nullable for GitHub-only candidates)
     x_user_id: Optional[str] = None
     x_username: Optional[str] = None
     # GitHub identifiers (nullable for X-only candidates)
@@ -302,6 +302,6 @@ class GitHubSourceRequest(BaseModel):
     min_followers: int = Field(default=5, ge=0, description="Minimum GitHub followers")
     min_repos: int = Field(default=3, ge=0, description="Minimum public repositories")
     max_results: int = Field(default=20, ge=1, le=100, description="Maximum candidates to source")
-    require_x_profile: bool = Field(default=False, description="Only include candidates with X/Twitter profiles")
+    require_x_profile: bool = Field(default=False, description="Only include candidates with X profiles")
     min_dev_score: int = Field(default=50, ge=0, le=100, description="Minimum developer score (0-100)")
 

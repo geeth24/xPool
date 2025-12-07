@@ -26,7 +26,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "xPool - AI-Powered Sourcing",
+  title: "xPool - AI-Powered Talent Sourcing",
   description: "Smart talent sourcing using X API and Grok AI",
 };
 
@@ -48,27 +48,29 @@ export default function RootLayout({
         >
           <SidebarProvider>
             <AppSidebar />
-            <main className="w-full bg-background text-foreground">
-               <div className="flex h-14 items-center gap-2 border-b px-4">
+            <main className="w-full bg-background text-foreground min-h-screen">
+              <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border/50">
+                <div className="flex h-14 items-center gap-2 px-4">
                   <SidebarTrigger className="-ml-1" />
-                  <Separator orientation="vertical" className="mr-2 h-4" />
+                  <Separator orientation="vertical" className="mr-2 h-4 bg-border/50" />
                   <Breadcrumb>
                     <BreadcrumbList>
                       <BreadcrumbItem className="hidden md:block">
-                        <BreadcrumbLink href="#">
+                        <BreadcrumbLink href="/" className="text-muted-foreground hover:text-foreground transition-colors">
                           xPool
                         </BreadcrumbLink>
                       </BreadcrumbItem>
                       <BreadcrumbSeparator className="hidden md:block" />
                       <BreadcrumbItem>
-                        <BreadcrumbPage>Dashboard</BreadcrumbPage>
+                        <BreadcrumbPage className="font-medium">Dashboard</BreadcrumbPage>
                       </BreadcrumbItem>
                     </BreadcrumbList>
                   </Breadcrumb>
                 </div>
+              </header>
               {children}
             </main>
-            <Toaster />
+            <Toaster richColors position="bottom-right" />
           </SidebarProvider>
         </ThemeProvider>
       </body>

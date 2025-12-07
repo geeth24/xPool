@@ -222,12 +222,15 @@ def source_candidates_task(
             return {"error": "No keywords"}
 
         # Report searching stage
-        self.update_state(state='PROGRESS', meta={
-            'stage': 'searching',
-            'stage_label': 'Searching X/Twitter...',
-            'progress': 15,
-            'details': {'job_title': job.title, 'keywords': keywords[:5]}
-        })
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "stage": "searching",
+                "stage_label": "Searching X...",
+                "progress": 15,
+                "details": {"job_title": job.title, "keywords": keywords[:5]},
+            },
+        )
 
         # STRATEGY 1: Try User Search API first
         # NOTE: Requires Pro tier + User Context auth (OAuth 1.0a/2.0), not Bearer Token
@@ -746,7 +749,7 @@ def source_from_github_task(
     Flow:
     1. Search GitHub users by query/language/location using comprehensive multi-strategy search
     2. Get full profile + repos for each user
-    3. Extract X/Twitter username if available
+    3. Extract X username if available
     4. If X profile exists, fetch tweets and analyze
     5. Create candidate with combined GitHub + X data
     """

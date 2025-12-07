@@ -226,29 +226,14 @@ export function SourcingWizard({ onComplete, onCancel, preselectedJobId }: Sourc
                       handleNext()
                     }}
                     className={cn(
-                      "flex items-start gap-3 p-3 rounded-lg border text-left transition-all w-full",
+                      "flex items-center gap-3 p-3 rounded-lg border text-left transition-all w-full",
                       config.jobId === job.id
                         ? "border-primary bg-primary/5 ring-1 ring-primary"
                         : "border-border hover:border-primary/50 hover:bg-muted/50"
                     )}
                   >
-                    <Briefcase className="size-4 mt-0.5 text-muted-foreground shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <span className="font-medium text-sm block">{job.title}</span>
-                      {job.keywords && job.keywords.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {job.keywords.slice(0, 3).map(k => (
-                            <Badge key={k} variant="secondary" className="text-[10px] h-5">{k}</Badge>
-                          ))}
-                        </div>
-                      )}
-                      {job.search_strategy && (
-                        <div className="flex items-center gap-1 mt-1.5 text-[10px] text-emerald-600">
-                          <Sparkles className="size-3" />
-                          AI strategy ready
-                        </div>
-                      )}
-                    </div>
+                    <Briefcase className="size-4 text-muted-foreground shrink-0" />
+                    <span className="font-medium text-sm flex-1">{job.title}</span>
                     {config.jobId === job.id && (
                       <Check className="size-4 text-primary shrink-0" />
                     )}

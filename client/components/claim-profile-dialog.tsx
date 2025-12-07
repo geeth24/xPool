@@ -56,7 +56,7 @@ const claimFormSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   proofs: z.array(proofSchema).min(1, "Add at least one proof"),
   preferred_contact: z.enum(["email", "x_dm", "linkedin"]).optional(),
-  open_to_opportunities: z.coerce.number().min(0).max(2).default(1),
+  open_to_opportunities: z.number().min(0).max(2),
 })
 
 type ClaimFormValues = z.infer<typeof claimFormSchema>
@@ -223,7 +223,7 @@ export function ClaimProfileDialog({
                         <SelectItem value="x_oauth">
                           <div className="flex items-center gap-2">
                             <Twitter className="h-4 w-4" />
-                            X/Twitter OAuth
+                            X OAuth
                           </div>
                         </SelectItem>
                         <SelectItem value="email">

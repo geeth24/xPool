@@ -1,6 +1,6 @@
 # xP (xPool) - AI-Powered Candidate Sourcing System
 
-> **Smart talent sourcing using X (Twitter) API and Grok AI to find real developers, not influencers.**
+> **Smart talent sourcing using X API and Grok AI to find real developers, not influencers.**
 
 xPool is an intelligent candidate sourcing and tracking system that leverages the X API to find potential candidates and uses Grok AI to deeply analyze their tweets to distinguish real developers from influencers, recruiters, and bots.
 
@@ -89,7 +89,7 @@ pip install -r requirements.txt
 Create a `.env` file in the root directory:
 
 ```env
-# X (Twitter) API
+# X API
 X_API_BEARER_TOKEN=your_x_api_bearer_token
 X_CONSUMER_KEY=your_consumer_key
 X_CONSUMER_KEY_SECRET=your_consumer_secret

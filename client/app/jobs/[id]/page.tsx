@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
+import { motion, AnimatePresence } from "motion/react"
 import { jobsApi, candidatesApi, Job, JobCandidate, GitHubSourceRequest, CandidateStatus } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -69,6 +70,21 @@ import {
 } from "@/components/ui/dialog"
 
 type PipelineStage = "all" | "sourced" | "shortlisted" | "rejected"
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 30, scale: 0.95 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      delay: i * 0.08,
+      duration: 0.4,
+      ease: [0.25, 0.46, 0.45, 0.94] as const,
+    },
+  }),
+  exit: { opacity: 0, y: -20, scale: 0.95, transition: { duration: 0.2 } },
+}
 
 // --- Find Similar Button Component ---
 
@@ -735,8 +751,8 @@ export default function JobDetailPage() {
 
   return (
     <div className="min-h-screen bg-muted/5">
-      {/* Sticky Header */}
-      <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border/50">
+      {/* Sticky Header - positioned below main nav */}
+      <header className="sticky top-14 z-30 bg-background/95 backdrop-blur-xl border-b border-border/50 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -849,26 +865,47 @@ export default function JobDetailPage() {
         </div>
 
         {/* Candidates Feed */}
-        <div className="space-y-6">
-           {filteredCandidates.length === 0 ? (
-              <div className="text-center py-20 border-2 border-dashed rounded-xl bg-background/50">
-                 <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                 <h3 className="text-lg font-medium">No candidates found</h3>
-                 <p className="text-muted-foreground mt-1">
-                    {candidates.length === 0 ? "Source candidates to get started." : "Adjust your filters to see more."}
-                 </p>
-                 {candidates.length === 0 && (
-                    <Button variant="outline" onClick={() => setSourcingOpen(true)} className="mt-4">
-                       Source Candidates
-                    </Button>
-                 )}
-              </div>
-           ) : (
-              filteredCandidates.map(jc => (
-                 <CandidateCard key={jc.id} jc={jc} jobId={jobId} onAction={fetchCandidates} />
+        <AnimatePresence mode="popLayout">
+          <motion.div className="space-y-6">
+            {filteredCandidates.length === 0 ? (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-center py-20 border-2 border-dashed rounded-xl bg-background/50 gradient-card"
+              >
+                <motion.div
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                >
+                  <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                </motion.div>
+                <h3 className="text-lg font-medium">No candidates found</h3>
+                <p className="text-muted-foreground mt-1">
+                  {candidates.length === 0 ? "Source candidates to get started." : "Adjust your filters to see more."}
+                </p>
+                {candidates.length === 0 && (
+                  <Button variant="outline" onClick={() => setSourcingOpen(true)} className="mt-4">
+                    Source Candidates
+                  </Button>
+                )}
+              </motion.div>
+            ) : (
+              filteredCandidates.map((jc, index) => (
+                <motion.div
+                  key={jc.id}
+                  custom={index}
+                  variants={cardVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  layout
+                >
+                  <CandidateCard jc={jc} jobId={jobId} onAction={fetchCandidates} />
+                </motion.div>
               ))
-           )}
-        </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
     </div>
   )

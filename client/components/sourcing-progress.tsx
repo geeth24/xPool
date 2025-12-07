@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useState, useEffect, useCallback } from "react"
 import { Github, Search, Users, Sparkles, CheckCircle2, Loader2, AlertCircle, X } from "lucide-react"
+import { motion } from "motion/react"
 import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
@@ -20,10 +21,10 @@ interface SourcingProgressProps {
 
 const STAGE_CONFIG: Record<string, { icon: React.ReactNode; color: string }> = {
   initializing: { icon: <Loader2 className="size-4 animate-spin" />, color: "text-muted-foreground" },
-  searching: { icon: <Search className="size-4" />, color: "text-blue-500" },
-  analyzing: { icon: <Users className="size-4" />, color: "text-amber-500" },
-  enriching: { icon: <Sparkles className="size-4" />, color: "text-purple-500" },
-  complete: { icon: <CheckCircle2 className="size-4" />, color: "text-green-500" },
+  searching: { icon: <Search className="size-4" />, color: "text-foreground/70" },
+  analyzing: { icon: <Users className="size-4" />, color: "text-foreground/70" },
+  enriching: { icon: <Sparkles className="size-4" />, color: "text-foreground/70" },
+  complete: { icon: <CheckCircle2 className="size-4" />, color: "text-foreground" },
 }
 
 export function SourcingProgress({
@@ -82,13 +83,18 @@ export function SourcingProgress({
   const finalResult = isComplete ? (status?.result as Record<string, unknown>) : null
 
   return (
-    <div className={cn(
-      "w-full max-w-2xl my-3 rounded-xl border overflow-hidden transition-all",
-      isComplete ? "bg-green-500/5 border-green-500/20" : "bg-muted/30 border-border/50"
-    )}>
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className={cn(
+        "w-full max-w-2xl my-3 rounded-xl overflow-hidden transition-all glass-card",
+        isComplete && "border-foreground/20"
+      )}
+    >
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50">
-        <div className="p-2 rounded-lg bg-zinc-900 text-white">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-border/30">
+        <div className="p-2 rounded-lg bg-foreground text-background">
           <Github className="size-4" />
         </div>
         <div className="flex-1 min-w-0">
@@ -129,10 +135,7 @@ export function SourcingProgress({
             {/* Progress bar */}
             <Progress 
               value={progressValue} 
-              className={cn(
-                "h-2 transition-all",
-                isComplete && "[&>div]:bg-green-500"
-              )}
+              className="h-2 transition-all"
             />
 
             {/* Details */}
@@ -168,7 +171,7 @@ export function SourcingProgress({
 
             {/* Complete message */}
             {isComplete && finalResult && (
-              <div className="flex items-center gap-2 text-green-600 text-sm pt-1">
+              <div className="flex items-center gap-2 text-foreground text-sm pt-1">
                 <CheckCircle2 className="size-4" />
                 <span>
                   Sourcing complete! Found{" "}
@@ -185,7 +188,7 @@ export function SourcingProgress({
           </>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }
 

@@ -1,12 +1,12 @@
+"use client"
+
 import * as React from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { motion } from "motion/react"
 import {
   Briefcase,
   Home,
-  Search,
-  Settings,
-  Users,
-  Zap,
 } from "lucide-react"
 
 import {
@@ -21,12 +21,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  SidebarSeparator,
 } from "@/components/ui/sidebar"
 import { NavUser } from "@/components/nav-user"
 import { GrokLogo } from "@/components/ui/grok-logo"
 
-// Menu items.
 const items = [
   {
     title: "Home",
@@ -43,32 +41,30 @@ const items = [
     url: "/jobs",
     icon: Briefcase,
   },
-  {
-    title: "Candidates",
-    url: "/candidates",
-    icon: Users,
-  },
-  {
-    title: "Smart Sourcing",
-    url: "/sourcing",
-    icon: Search,
-  },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const pathname = usePathname()
+
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar collapsible="icon" {...props} variant="floating">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Zap className="size-4" />
-                </div>
+              <Link href="/" className="group">
+                <motion.div 
+                  className="flex aspect-square size-8 items-center justify-center rounded-lg bg-foreground text-background shadow-md font-bold text-sm"
+                  whileHover={{ scale: 1.05, rotate: 5 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  𝕏
+                </motion.div>
                 <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">xPool</span>
-                  <span className="">v1.0.0</span>
+                  <span className="font-bold text-lg">xPool</span>
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <GrokLogo className="size-2.5" /> Grok-Powered
+                  </span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -77,44 +73,41 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Application</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-xs uppercase tracking-wider">Application</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild tooltip={item.title}>
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {items.map((item, index) => {
+                const isActive = pathname === item.url || (item.url !== "/" && pathname.startsWith(item.url))
+                return (
+                  <motion.div
+                    key={item.title}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <SidebarMenuItem>
+                      <SidebarMenuButton 
+                        asChild 
+                        tooltip={item.title}
+                      >
+                        <Link href={item.url}>
+                          <item.icon className={isActive ? "text-foreground !opacity-100" : "opacity-50"} />
+                          <span className={isActive ? "font-bold text-foreground" : "text-muted-foreground"}>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </motion.div>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarSeparator />
-        <SidebarGroup>
-            <SidebarGroupLabel>Settings</SidebarGroupLabel>
-            <SidebarGroupContent>
-                <SidebarMenu>
-                    <SidebarMenuItem>
-                        <SidebarMenuButton asChild tooltip="Settings">
-                            <Link href="/settings">
-                                <Settings />
-                                <span>Settings</span>
-                            </Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                </SidebarMenu>
-            </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={{
-            name: "Demo User",
-            email: "demo@xpool.ai",
-            avatar: "/avatars/shadcn.jpg",
+          name: "xAI Recruiter",
+          email: "xai@x.ai",
+          avatar: "",
         }} />
       </SidebarFooter>
       <SidebarRail />

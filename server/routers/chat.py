@@ -101,7 +101,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "start_sourcing",
-            "description": "Start sourcing candidates for a job from X/Twitter. This finds developers who tweet about relevant technologies.",
+            "description": "Start sourcing candidates for a job from X. This finds developers who tweet about relevant technologies.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -259,7 +259,7 @@ SYSTEM_PROMPT = """You are an AI recruiting assistant for xPool, a candidate sou
 
 Your capabilities:
 1. Create job postings with smart keyword generation
-2. Source candidates from X/Twitter (finds developers by their tweets)
+2. Source candidates from X (finds developers by their tweets)
 3. Source candidates from GitHub (finds developers by their code)
 4. Search and filter the candidate database
 5. Generate evidence cards explaining why candidates match jobs
@@ -362,13 +362,29 @@ Respond with JSON:
             
             print(f"[Chat] Created job: {job.title} with id: {job.id}")
             
+            # generate search strategy (bio keywords, repo topics, languages, etc.)
+            try:
+                search_strategy = await grok_client.generate_search_strategy(
+                    job_title=title,
+                    job_description=description or "",
+                    keywords=keywords,
+                    requirements=requirements or ""
+                )
+                job.search_strategy = search_strategy
+                db.commit()
+                db.refresh(job)
+                print(f"[Chat] Generated search strategy for job {job.id}: {search_strategy.get('role_type', 'unknown')}")
+            except Exception as e:
+                print(f"[Chat] Failed to generate search strategy: {e}")
+            
             return {
                 "success": True,
-                "job_id": job.id,  # top-level for easy access
+                "job_id": job.id,
                 "job": {
                     "id": job.id,
                     "title": job.title,
-                    "keywords": job.keywords
+                    "keywords": job.keywords,
+                    "search_strategy": job.search_strategy
                 },
                 "message": f"Created job '{title}' with ID {job.id}. Use job_id='{job.id}' for sourcing."
             }

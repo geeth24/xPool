@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { useSearchParams } from "next/navigation"
+import { Suspense } from "react"
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import {
@@ -36,11 +37,11 @@ const sourcingFormSchema = z.object({
   searchQuery: z.string().min(2, "Search query must be at least 2 characters"),
   language: z.string().optional(),
   location: z.string().optional(),
-  minFollowers: z.number().min(0).default(10),
-  minRepos: z.number().min(0).default(5),
-  maxResults: z.number().min(1).max(50).default(15),
-  requireXProfile: z.boolean().default(false),
-  minDevScore: z.number().min(0).max(100).default(60),
+  minFollowers: z.number().min(0),
+  minRepos: z.number().min(0),
+  maxResults: z.number().min(1).max(50),
+  requireXProfile: z.boolean(),
+  minDevScore: z.number().min(0).max(100),
 })
 
 type SourcingFormValues = z.infer<typeof sourcingFormSchema>
@@ -58,7 +59,7 @@ const POPULAR_LANGUAGES = [
   "ruby",
 ]
 
-export default function SourcingPage() {
+function SourcingPageContent() {
   const searchParams = useSearchParams()
   const preselectedJobId = searchParams.get("jobId")
   
@@ -229,7 +230,7 @@ export default function SourcingPage() {
             Developer Sourcing
           </h2>
           <p className="text-muted-foreground mt-2 max-w-2xl">
-            Find verified developers on GitHub, automatically enriched with X/Twitter data and AI analysis.
+            Find verified developers on GitHub, automatically enriched with X data and AI analysis.
           </p>
         </div>
       </div>
@@ -393,7 +394,16 @@ export default function SourcingPage() {
                           <FormItem>
                             <FormLabel>Max Candidates</FormLabel>
                             <FormControl>
-                              <Input type="number" {...field} className="h-10" />
+                              <Input 
+                                type="number" 
+                                {...field} 
+                                value={field.value ?? ""}
+                                onChange={(e) => {
+                                  const value = e.target.value === "" ? 15 : Number(e.target.value)
+                                  field.onChange(isNaN(value) ? 15 : value)
+                                }}
+                                className="h-10" 
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -406,7 +416,16 @@ export default function SourcingPage() {
                           <FormItem>
                             <FormLabel>Min Followers</FormLabel>
                             <FormControl>
-                              <Input type="number" {...field} className="h-10" />
+                              <Input 
+                                type="number" 
+                                {...field} 
+                                value={field.value ?? ""}
+                                onChange={(e) => {
+                                  const value = e.target.value === "" ? 10 : Number(e.target.value)
+                                  field.onChange(isNaN(value) ? 10 : value)
+                                }}
+                                className="h-10" 
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -419,7 +438,16 @@ export default function SourcingPage() {
                           <FormItem>
                             <FormLabel>Min Repos</FormLabel>
                             <FormControl>
-                              <Input type="number" {...field} className="h-10" />
+                              <Input 
+                                type="number" 
+                                {...field} 
+                                value={field.value ?? ""}
+                                onChange={(e) => {
+                                  const value = e.target.value === "" ? 5 : Number(e.target.value)
+                                  field.onChange(isNaN(value) ? 5 : value)
+                                }}
+                                className="h-10" 
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -433,7 +461,7 @@ export default function SourcingPage() {
                       render={({ field }) => (
                         <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4 bg-muted/20">
                           <div className="space-y-0.5">
-                            <FormLabel className="text-base font-medium">Require X/Twitter Profile</FormLabel>
+                            <FormLabel className="text-base font-medium">Require X Profile</FormLabel>
                             <FormDescription>Only include developers who have a linked X profile for AI analysis.</FormDescription>
                           </div>
                           <FormControl>
@@ -530,7 +558,7 @@ export default function SourcingPage() {
               <div className="relative pl-6 border-l-2 border-muted">
                 <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-background border-2 border-muted-foreground" />
                 <h4 className="text-sm font-semibold">X Enrichment</h4>
-                <p className="text-xs text-muted-foreground mt-1">Cross-references data with X/Twitter for personality insights.</p>
+                <p className="text-xs text-muted-foreground mt-1">Cross-references data with X for personality insights.</p>
               </div>
               <div className="relative pl-6 border-l-2 border-muted">
                 <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-background border-2 border-muted-foreground" />
@@ -556,5 +584,20 @@ export default function SourcingPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function SourcingPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 space-y-8 p-8 pt-6 max-w-7xl mx-auto w-full">
+        <div className="space-y-6">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-96 w-full" />
+        </div>
+      </div>
+    }>
+      <SourcingPageContent />
+    </Suspense>
   )
 }

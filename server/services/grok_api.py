@@ -207,7 +207,7 @@ Respond with ONLY a number between 0 and 100, nothing else."""
         
         tweets_text = "\n".join(tweets_formatted) if tweets_formatted else "No tweets available"
         
-        prompt = f"""Analyze this X/Twitter user's profile and tweets to classify them for recruiting purposes.
+        prompt = f"""Analyze this X user's profile and tweets to classify them for recruiting purposes.
 
 USERNAME: @{username}
 DISPLAY NAME: {display_name}

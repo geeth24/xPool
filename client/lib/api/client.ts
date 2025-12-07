@@ -19,6 +19,7 @@ import {
   VerificationStatus,
   EvidenceFeedbackCreate,
   EvidenceFeedback,
+  EvidenceCard,
   SearchStrategy,
   LearnedPattern,
 } from "./types"
@@ -186,7 +187,7 @@ export const jobsApi = {
       job_id: string
       candidate_id: string
       feedback_used: number
-      evidence: Record<string, unknown>
+      evidence: EvidenceCard
     }>(`/jobs/${jobId}/candidates/${candidateId}/regenerate-evidence`, {
       method: "POST",
     }),

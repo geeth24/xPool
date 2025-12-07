@@ -83,7 +83,7 @@ class Candidate(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid)
 
-    # X (Twitter) identifiers - nullable for GitHub-only candidates
+    # X identifiers - nullable for GitHub-only candidates
     x_user_id = Column(String, unique=True, nullable=True)
     x_username = Column(String, nullable=True)
 
