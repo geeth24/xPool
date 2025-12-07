@@ -16,13 +16,13 @@ import { jobsApi, candidatesApi, Job, Candidate, CandidateType } from "@/lib/api
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { ArrowUpRight, Users, Briefcase, Zap, Brain, Sparkles } from "lucide-react"
+import { ArrowUpRight, Users, Briefcase, Zap, Brain } from "lucide-react"
 
 interface DashboardStats {
   totalCandidates: number
   activeJobs: number
   sourcedToday: number
-  developerAccuracy: number
+  developersCount: number
 }
 
 const container = {
@@ -64,16 +64,12 @@ export default function DashboardPage() {
         const developers = candidates.filter(
           (c: Candidate) => c.candidate_type === CandidateType.DEVELOPER
         )
-        const withConfidence = developers.filter((c: Candidate) => c.type_confidence)
-        const avgConfidence = withConfidence.length > 0
-          ? withConfidence.reduce((acc: number, c: Candidate) => acc + (c.type_confidence || 0), 0) / withConfidence.length
-          : 0
 
         setStats({
           totalCandidates: candidates.length,
           activeJobs: jobs.filter((j: Job) => j.status === "active").length,
           sourcedToday,
-          developerAccuracy: Math.round(avgConfidence * 100),
+          developersCount: developers.length,
         })
       } catch (error) {
         console.error("Failed to fetch stats:", error)
@@ -81,7 +77,7 @@ export default function DashboardPage() {
           totalCandidates: 0,
           activeJobs: 0,
           sourcedToday: 0,
-          developerAccuracy: 0,
+          developersCount: 0,
         })
       } finally {
         setLoading(false)
@@ -187,7 +183,7 @@ export default function DashboardPage() {
         <motion.div variants={item}>
           <Card className="overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">AI Accuracy</CardTitle>
+              <CardTitle className="text-sm font-medium">Developers</CardTitle>
               <div className="h-8 w-8 rounded-lg bg-foreground/5 flex items-center justify-center">
                 <Brain className="h-4 w-4 text-foreground/70" />
               </div>
@@ -197,11 +193,11 @@ export default function DashboardPage() {
                 <Skeleton className="h-9 w-24" />
               ) : (
                 <div className="text-3xl font-bold">
-                  {stats?.developerAccuracy}%
+                  {stats?.developersCount}
                 </div>
               )}
               <p className="text-xs text-muted-foreground mt-1">
-                Confidence score
+                Verified engineers
               </p>
             </CardContent>
           </Card>
@@ -216,9 +212,9 @@ export default function DashboardPage() {
       >
         <Card className="col-span-4 gradient-card">
           <CardHeader>
-            <CardTitle className="text-xl">Overview</CardTitle>
+            <CardTitle className="text-xl">Candidates by Job</CardTitle>
             <CardDescription>
-              Candidate sourcing activity over time.
+              Sourced candidates per active job role.
             </CardDescription>
           </CardHeader>
           <CardContent className="pl-2">

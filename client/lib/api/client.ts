@@ -7,8 +7,6 @@ import {
   JobCandidate,
   JobCandidateCreate,
   JobCandidateUpdate,
-  SourceRequest,
-  SourceResponse,
   GitHubSourceRequest,
   GitHubSourceResponse,
   TaskStatus,
@@ -65,6 +63,17 @@ export const jobsApi = {
       body: JSON.stringify({ title }),
     }),
 
+  parse: (jobDescription: string) =>
+    fetchApi<{
+      title: string
+      description: string
+      keywords: string[]
+      requirements: string
+    }>("/jobs/parse", {
+      method: "POST",
+      body: JSON.stringify({ job_description: jobDescription }),
+    }),
+
   create: (data: JobCreate) =>
     fetchApi<Job>("/jobs", {
       method: "POST",
@@ -80,12 +89,6 @@ export const jobsApi = {
   delete: (jobId: string) =>
     fetchApi<{ message: string }>(`/jobs/${jobId}`, {
       method: "DELETE",
-    }),
-
-  source: (jobId: string, request: SourceRequest) =>
-    fetchApi<SourceResponse>(`/jobs/${jobId}/source`, {
-      method: "POST",
-      body: JSON.stringify(request),
     }),
 
   sourceGitHub: (jobId: string, request: GitHubSourceRequest) =>

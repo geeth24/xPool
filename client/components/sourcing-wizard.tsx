@@ -1,14 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { useState, useCallback, useMemo, useEffect } from "react"
-import { Check, ChevronRight, MapPin, Code2, Briefcase, Sparkles, Globe, Building2, Loader2 } from "lucide-react"
+import { useState, useCallback, useMemo } from "react"
+import { Check, ChevronRight, MapPin, Code2, Briefcase, Sparkles, Globe, Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { jobsApi, Job, SearchStrategy } from "@/lib/api"
-import { toast } from "sonner"
 
 export interface SourcingConfig {
   roleType: string
@@ -28,7 +26,7 @@ interface SourcingWizardProps {
   preselectedJobId?: string
 }
 
-type Step = "job" | "role" | "location" | "skills" | "count" | "experience" | "confirm"
+type Step = "role" | "location" | "skills" | "count" | "experience" | "confirm"
 
 const ROLE_OPTIONS = [
   { value: "ml_engineer", label: "ML/AI Engineer", icon: <Sparkles className="size-4" />, keywords: ["machine learning", "deep learning", "pytorch", "tensorflow"] },
@@ -83,7 +81,7 @@ const EXPERIENCE_OPTIONS = [
 
 
 export function SourcingWizard({ onComplete, onCancel, preselectedJobId }: SourcingWizardProps) {
-  const [step, setStep] = useState<Step>(preselectedJobId ? "role" : "job")
+  const [step, setStep] = useState<Step>("role")
   const [config, setConfig] = useState<Partial<SourcingConfig>>({
     skills: [],
     candidateCount: 25,
@@ -92,68 +90,9 @@ export function SourcingWizard({ onComplete, onCancel, preselectedJobId }: Sourc
   })
   const [customInput, setCustomInput] = useState("")
   const [customSkillInput, setCustomSkillInput] = useState("")
-  
-  // Job selection and AI strategy
-  const [jobs, setJobs] = useState<Job[]>([])
-  const [loadingJobs, setLoadingJobs] = useState(false)
-  const [loadingStrategy, setLoadingStrategy] = useState(false)
-  const [aiStrategy, setAiStrategy] = useState<SearchStrategy | null>(null)
 
-  // Load jobs on mount
-  useEffect(() => {
-    async function fetchJobs() {
-      setLoadingJobs(true)
-      try {
-        const data = await jobsApi.list()
-        setJobs(data)
-      } catch {
-        toast.error("Failed to load jobs")
-      } finally {
-        setLoadingJobs(false)
-      }
-    }
-    fetchJobs()
-  }, [])
-
-  // Load strategy when job is selected
-  useEffect(() => {
-    async function loadStrategy(jobId: string) {
-      setLoadingStrategy(true)
-      try {
-        const result = await jobsApi.getSearchStrategy(jobId)
-        if (result.search_strategy) {
-          const strategy = result.search_strategy
-          setAiStrategy(strategy)
-          // auto-fill skills from strategy
-          if (strategy.bio_keywords?.length > 0) {
-            setConfig(prev => ({
-              ...prev,
-              skills: strategy.bio_keywords.slice(0, 5)
-            }))
-          }
-          // auto-detect role type
-          if (strategy.role_type && strategy.role_type !== "unknown") {
-            setConfig(prev => ({
-              ...prev,
-              roleType: strategy.role_type
-            }))
-          }
-        }
-      } catch {
-        // no strategy yet
-      } finally {
-        setLoadingStrategy(false)
-      }
-    }
-    
-    if (config.jobId) {
-      loadStrategy(config.jobId)
-    }
-  }, [config.jobId])
-
-  const steps = useMemo<Step[]>(() => preselectedJobId 
-    ? ["role", "location", "skills", "count", "experience", "confirm"]
-    : ["job", "role", "location", "skills", "count", "experience", "confirm"], [preselectedJobId])
+  const steps = useMemo<Step[]>(() => 
+    ["role", "location", "skills", "count", "experience", "confirm"], [])
   const currentStepIndex = steps.indexOf(step)
   const progress = ((currentStepIndex + 1) / steps.length) * 100
 
@@ -205,52 +144,6 @@ export function SourcingWizard({ onComplete, onCancel, preselectedJobId }: Sourc
 
   const renderStepContent = () => {
     switch (step) {
-      case "job":
-        return (
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <h3 className="font-semibold text-lg">Which job are you sourcing for?</h3>
-              <p className="text-sm text-muted-foreground">Select a job to auto-load AI search tags</p>
-            </div>
-            {loadingJobs ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="size-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                {jobs.map(job => (
-                  <button
-                    key={job.id}
-                    onClick={() => {
-                      setConfig(prev => ({ ...prev, jobId: job.id }))
-                      handleNext()
-                    }}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-lg border text-left transition-all w-full",
-                      config.jobId === job.id
-                        ? "border-primary bg-primary/5 ring-1 ring-primary"
-                        : "border-border hover:border-primary/50 hover:bg-muted/50"
-                    )}
-                  >
-                    <Briefcase className="size-4 text-muted-foreground shrink-0" />
-                    <span className="font-medium text-sm flex-1">{job.title}</span>
-                    {config.jobId === job.id && (
-                      <Check className="size-4 text-primary shrink-0" />
-                    )}
-                  </button>
-                ))}
-                {jobs.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Briefcase className="size-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No jobs found</p>
-                    <p className="text-xs">Create a job first to start sourcing</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )
-
       case "role":
         return (
           <div className="space-y-4">
@@ -258,23 +151,6 @@ export function SourcingWizard({ onComplete, onCancel, preselectedJobId }: Sourc
               <h3 className="font-semibold text-lg">What role are you hiring for?</h3>
               <p className="text-sm text-muted-foreground">Select the type of engineer you&apos;re looking for</p>
             </div>
-            
-            {/* AI Strategy loaded indicator */}
-            {aiStrategy && (
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400">
-                <Sparkles className="size-4" />
-                <span className="text-xs font-medium">AI search strategy loaded</span>
-                {loadingStrategy && <Loader2 className="size-3 animate-spin" />}
-              </div>
-            )}
-
-            {/* Auto-detected role from AI */}
-            {aiStrategy?.role_type && aiStrategy.role_type !== "unknown" && (
-              <div className="text-xs text-muted-foreground flex items-center gap-1">
-                <Check className="size-3 text-emerald-500" />
-                AI detected: <span className="font-medium capitalize">{aiStrategy.role_type.replace(/_/g, " ")}</span>
-              </div>
-            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {ROLE_OPTIONS.map(option => (
@@ -332,39 +208,12 @@ export function SourcingWizard({ onComplete, onCancel, preselectedJobId }: Sourc
         )
 
       case "location":
-        const aiLocations = aiStrategy?.location_suggestions || []
         return (
           <div className="space-y-4">
             <div className="space-y-1">
               <h3 className="font-semibold text-lg">Where should candidates be located?</h3>
               <p className="text-sm text-muted-foreground">Select preferred location or timezone</p>
             </div>
-            
-            {/* AI-suggested locations */}
-            {aiLocations.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Sparkles className="size-3 text-primary" />
-                  <span>AI-suggested locations for this role</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {aiLocations.map(loc => (
-                    <button
-                      key={`ai-loc-${loc}`}
-                      onClick={() => {
-                        handleSelect("location", "custom")
-                        handleSelect("customLocation", loc)
-                        handleNext()
-                      }}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-sm font-medium hover:bg-primary/10 transition-all"
-                    >
-                      <MapPin className="size-3 text-primary" />
-                      <span className="capitalize">{loc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {LOCATION_OPTIONS.map(option => (
@@ -423,11 +272,6 @@ export function SourcingWizard({ onComplete, onCancel, preselectedJobId }: Sourc
 
       case "skills":
         const roleSkills = SKILL_OPTIONS[config.roleType || "custom"]
-        // combine AI-generated skills with role-based skills
-        const aiSkills = aiStrategy?.bio_keywords || []
-        const aiTopics = aiStrategy?.repo_topics || []
-        const combinedAiSkills = [...new Set([...aiSkills, ...aiTopics])].slice(0, 12)
-        const hasAiSkills = combinedAiSkills.length > 0
         
         return (
           <div className="space-y-4">
@@ -436,42 +280,10 @@ export function SourcingWizard({ onComplete, onCancel, preselectedJobId }: Sourc
               <p className="text-sm text-muted-foreground">Select must-have skills (pick 3-5 for best results)</p>
             </div>
             
-            {/* AI-generated skills section */}
-            {hasAiSkills && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Sparkles className="size-3 text-primary" />
-                  <span>AI-recommended for this job</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {combinedAiSkills.map(skill => (
-                    <button
-                      key={`ai-${skill}`}
-                      onClick={() => handleSkillToggle(skill)}
-                      className={cn(
-                        "px-3 py-1.5 rounded-full border text-sm font-medium transition-all",
-                        config.skills?.includes(skill)
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary"
-                      )}
-                    >
-                      {skill}
-                      {config.skills?.includes(skill) && (
-                        <Check className="size-3 ml-1.5 inline" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* Standard role-based skills */}
+            {/* Role-based skills */}
             <div className="space-y-2">
-              {hasAiSkills && (
-                <div className="text-xs text-muted-foreground">Or choose from common skills:</div>
-              )}
               <div className="flex flex-wrap gap-2">
-                {roleSkills.skills.filter(s => !combinedAiSkills.includes(s)).map(skill => (
+                {roleSkills.skills.map(skill => (
                   <button
                     key={skill}
                     onClick={() => handleSkillToggle(skill)}
@@ -587,7 +399,6 @@ export function SourcingWizard({ onComplete, onCancel, preselectedJobId }: Sourc
       case "confirm":
         const roleLabel = ROLE_OPTIONS.find(r => r.value === config.roleType)?.label || config.customRole || config.roleType
         const locationLabel = LOCATION_OPTIONS.find(l => l.value === config.location)?.label || config.customLocation || config.location
-        const selectedJobForConfirm = jobs.find(j => j.id === config.jobId)
         
         return (
           <div className="space-y-4">
@@ -596,21 +407,7 @@ export function SourcingWizard({ onComplete, onCancel, preselectedJobId }: Sourc
               <p className="text-sm text-muted-foreground">Review your search criteria</p>
             </div>
             
-            {/* AI Strategy indicator */}
-            {aiStrategy && (
-              <div className="flex items-center gap-2 p-2 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400">
-                <Sparkles className="size-4" />
-                <span className="text-xs font-medium">Using AI-optimized search strategy</span>
-              </div>
-            )}
-            
             <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-              {selectedJobForConfirm && (
-                <div className="flex justify-between items-center pb-2 border-b">
-                  <span className="text-sm text-muted-foreground">Job</span>
-                  <span className="font-medium text-sm">{selectedJobForConfirm.title}</span>
-                </div>
-              )}
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Role</span>
                 <span className="font-medium">{roleLabel}</span>

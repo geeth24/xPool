@@ -8,15 +8,16 @@ import { cn } from "@/lib/utils"
 type CardProps = Omit<HTMLMotionProps<"div">, "ref"> & {
   className?: string
   glass?: boolean
+  animated?: boolean
 }
 
-function Card({ className, glass = true, ...props }: CardProps) {
+function Card({ className, glass = true, animated = true, ...props }: CardProps) {
   return (
     <motion.div
       data-slot="card"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
+      initial={animated ? { opacity: 0, y: 10 } : false}
+      animate={animated ? { opacity: 1, y: 0 } : undefined}
+      transition={animated ? { duration: 0.3, ease: [0.4, 0, 0.2, 1] } : undefined}
       whileHover={{ y: -2, transition: { duration: 0.2 } }}
       className={cn(
         "text-card-foreground flex flex-col gap-4 rounded-xl py-4 transition-all duration-300",

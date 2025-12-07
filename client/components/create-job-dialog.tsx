@@ -4,7 +4,7 @@ import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { Plus, X } from "lucide-react"
+import { Plus, X, FileText } from "lucide-react"
 import { GrokLogo } from "@/components/ui/grok-logo"
 
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { jobsApi, JobCreate } from "@/lib/api"
 import { toast } from "sonner"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 
 const jobFormSchema = z.object({
   title: z.string().min(2, "Title must be at least 2 characters"),
@@ -48,6 +53,9 @@ export function CreateJobDialog({ onCreated }: CreateJobDialogProps) {
   const [keywordInput, setKeywordInput] = React.useState("")
   const [loading, setLoading] = React.useState(false)
   const [generating, setGenerating] = React.useState(false)
+  const [parsing, setParsing] = React.useState(false)
+  const [rawJobDescription, setRawJobDescription] = React.useState("")
+  const [pasteOpen, setPasteOpen] = React.useState(false)
 
   const form = useForm<z.infer<typeof jobFormSchema>>({
     resolver: zodResolver(jobFormSchema),
@@ -100,6 +108,33 @@ export function CreateJobDialog({ onCreated }: CreateJobDialogProps) {
     }
   }
 
+  async function parseJobDescription() {
+    if (!rawJobDescription || rawJobDescription.length < 20) {
+      toast.error("Paste a job description first (at least 20 characters)")
+      return
+    }
+
+    try {
+      setParsing(true)
+      const parsed = await jobsApi.parse(rawJobDescription)
+      
+      form.setValue("title", parsed.title)
+      form.setValue("description", parsed.description)
+      form.setValue("keywords", parsed.keywords)
+      form.setValue("requirements", parsed.requirements)
+      
+      setPasteOpen(false)
+      setRawJobDescription("")
+      toast.success("Parsed job description with Grok AI")
+    } catch (error) {
+      toast.error("Failed to parse", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    } finally {
+      setParsing(false)
+    }
+  }
+
   async function onSubmit(data: z.infer<typeof jobFormSchema>) {
     try {
       setLoading(true)
@@ -135,6 +170,48 @@ export function CreateJobDialog({ onCreated }: CreateJobDialogProps) {
           <form onSubmit={form.handleSubmit(onSubmit)} id="create-job-form" className="flex flex-col flex-1 min-h-0">
             <div className="flex-1 overflow-y-auto px-4 min-h-0">
               <div className="space-y-4 py-4">
+            
+            <Collapsible open={pasteOpen} onOpenChange={setPasteOpen}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start gap-2"
+                >
+                  <FileText className="h-4 w-4" />
+                  {pasteOpen ? "Hide" : "Paste a job description"}
+                  <GrokLogo className="h-3 w-3 ml-auto" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-3 space-y-3">
+                <Textarea
+                  placeholder="Paste the full job description here..."
+                  className="min-h-[120px] resize-none"
+                  value={rawJobDescription}
+                  onChange={(e) => setRawJobDescription(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full gap-2"
+                  onClick={parseJobDescription}
+                  disabled={parsing || rawJobDescription.length < 20}
+                >
+                  <GrokLogo className={`h-4 w-4 ${parsing ? "animate-pulse" : ""}`} />
+                  {parsing ? "Parsing..." : "Parse with Grok AI"}
+                </Button>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">or fill manually</span>
+              </div>
+            </div>
+
             <FormField
               control={form.control}
               name="title"

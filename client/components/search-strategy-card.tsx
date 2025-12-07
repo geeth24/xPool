@@ -76,7 +76,7 @@ export function SearchStrategyCard({
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
   const [editingCategory, setEditingCategory] = useState<TagCategory | null>(null)
   const [newTagValue, setNewTagValue] = useState("")
   const [hasChanges, setHasChanges] = useState(false)
@@ -253,7 +253,7 @@ export function SearchStrategyCard({
 
   if (loading) {
     return (
-      <Card>
+      <Card animated={false}>
         <CardHeader>
           <Skeleton className="h-5 w-40" />
           <Skeleton className="h-4 w-60" />
@@ -267,7 +267,7 @@ export function SearchStrategyCard({
   }
 
   return (
-    <Card className="border-border/60">
+    <Card className="border-border/60" animated={false}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useState, useRef, useEffect } from "react"
-import { Send, Loader2, User, CheckCircle2, AlertCircle, Briefcase, Users, Search, FileText, ChevronRight, ChevronDown, SquareTerminal } from "lucide-react"
+import { Send, Loader2, User, CheckCircle2, AlertCircle, Briefcase, Users, Search, FileText, ChevronDown, SquareTerminal, SlidersHorizontal, X } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { motion, AnimatePresence } from "motion/react"
@@ -10,11 +10,13 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { GrokLogo } from "@/components/ui/grok-logo"
+import { Slider } from "@/components/ui/slider"
 import { SourcingProgress } from "@/components/sourcing-progress"
 import { SourcingWizard, SourcingConfig } from "@/components/sourcing-wizard"
 
 interface ActiveTask {
   taskId: string
+  jobId?: string
   jobTitle?: string
   searchQuery?: string
 }
@@ -25,6 +27,7 @@ interface Message {
   content: string
   toolCalls?: ToolCall[]
   isStreaming?: boolean
+  isProcessingTools?: boolean
   activeTasks?: ActiveTask[]
 }
 
@@ -41,7 +44,6 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   list_jobs: <Briefcase className="size-4" />,
   get_job_details: <Briefcase className="size-4" />,
   create_job: <Briefcase className="size-4" />,
-  start_sourcing: <Search className="size-4" />,
   start_github_sourcing: <Search className="size-4" />,
   get_job_candidates: <Users className="size-4" />,
   search_candidates: <Users className="size-4" />,
@@ -54,7 +56,6 @@ const TOOL_LABELS: Record<string, string> = {
   list_jobs: "Listing jobs",
   get_job_details: "Getting job details",
   create_job: "Creating job",
-  start_sourcing: "Starting X sourcing",
   start_github_sourcing: "Starting GitHub sourcing",
   get_job_candidates: "Getting candidates",
   search_candidates: "Searching candidates",
@@ -76,6 +77,8 @@ export function ChatPanel() {
   const [isLoading, setIsLoading] = useState(false)
   const [activeTasks, setActiveTasks] = useState<Map<string, ActiveTask>>(new Map())
   const [showWizard, setShowWizard] = useState(false)
+  const [showCollectionMode, setShowCollectionMode] = useState(false)
+  const [candidateCount, setCandidateCount] = useState(25)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -95,7 +98,9 @@ export function ChatPanel() {
     const locationLabel = config.customLocation || config.location.replace(/_/g, " ")
     const skillsText = config.skills.length > 0 ? config.skills.join(", ") : ""
     
-    let prompt = `Find ${config.candidateCount} ${roleLabel} candidates from GitHub`
+    // use collection mode count if active, otherwise wizard config
+    const count = showCollectionMode ? candidateCount : config.candidateCount
+    let prompt = `Find ${roleLabel} candidates from GitHub`
     if (config.jobId) {
       prompt += ` for job ID ${config.jobId}`
     }
@@ -108,6 +113,13 @@ export function ChatPanel() {
     if (config.experienceLevel !== "any") {
       prompt += ` (${config.experienceLevel} level)`
     }
+    
+    // always append collection mode with the count
+    prompt += ` [Collection: ${count}]`
+    
+    // enable collection mode with the wizard count
+    setShowCollectionMode(true)
+    setCandidateCount(count)
     
     setInput(prompt)
     // auto submit after a brief delay
@@ -140,10 +152,24 @@ export function ChatPanel() {
     e?.preventDefault()
     if (!input.trim() || isLoading) return
 
+    // display content is clean, API content includes collection mode
+    const displayContent = input.trim()
+    let apiContent = displayContent
+    if (showCollectionMode) {
+      apiContent += ` [Collection: ${candidateCount}]`
+    }
+
+    // user message shown in UI (clean)
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
-      content: input.trim(),
+      content: displayContent,
+    }
+
+    // message sent to API (with collection tag)
+    const apiMessage = {
+      role: "user",
+      content: apiContent,
     }
 
     const assistantMessage: Message = {
@@ -164,10 +190,10 @@ export function ChatPanel() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          messages: [
+            ...messages.map((m) => ({ role: m.role, content: m.content })),
+            apiMessage
+          ],
           stream: true,
         }),
       })
@@ -206,7 +232,8 @@ export function ChatPanel() {
                 if (last.role === "assistant") {
                   newMessages[lastIdx] = {
                     ...last,
-                    content: last.content + parsed.content
+                    content: last.content + parsed.content,
+                    isProcessingTools: false
                   }
                 }
                 return newMessages
@@ -219,6 +246,7 @@ export function ChatPanel() {
                 if (last.role === "assistant") {
                   newMessages[lastIdx] = {
                     ...last,
+                    isProcessingTools: true,
                     toolCalls: parsed.tools.map((name: string) => ({
                       name,
                       isExecuting: true,
@@ -248,12 +276,12 @@ export function ChatPanel() {
               // detect GitHub sourcing tasks and add to active tasks for progress tracking
               if (parsed.result?.success && parsed.result?.task_id) {
                 const toolName = parsed.tool as string
-                const isGitHubSourcing = toolName === "start_github_sourcing"
                 
-                if (isGitHubSourcing) {
+                if (toolName === "start_github_sourcing") {
                   const taskId = parsed.result.task_id as string
                   const newTask: ActiveTask = {
                     taskId,
+                    jobId: parsed.result.job_id as string | undefined,
                     jobTitle: parsed.result.job_title as string | undefined,
                     searchQuery: parsed.result.search_query as string | undefined,
                   }
@@ -461,11 +489,43 @@ export function ChatPanel() {
                           className="flex items-center gap-2 text-muted-foreground"
                         >
                           <Loader2 className="size-4 animate-spin" />
-                          <span className="text-sm">Thinking...</span>
+                          <span className="text-sm">
+                            {message.isProcessingTools && message.toolCalls?.length 
+                              ? `Running ${message.toolCalls.map(tc => TOOL_LABELS[tc.name] || tc.name).join(", ")}...`
+                              : "Thinking..."}
+                          </span>
                         </motion.div>
                       ) : null}
 
-                      {/* Only show tool results after streaming is done */}
+                      {/* Show tool execution status while processing */}
+                      {message.isStreaming && message.isProcessingTools && message.toolCalls && message.toolCalls.length > 0 && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="mt-3 space-y-2"
+                        >
+                          {message.toolCalls.map((tc, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <div className="p-1 bg-foreground/5 rounded">
+                                {tc.isExecuting ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : tc.result?.success ? (
+                                  <CheckCircle2 className="size-3 text-green-500" />
+                                ) : (
+                                  TOOL_ICONS[tc.name] || <SquareTerminal className="size-3" />
+                                )}
+                              </div>
+                              <span>{TOOL_LABELS[tc.name] || tc.name}</span>
+                              {tc.result && !tc.isExecuting && (
+                                <CheckCircle2 className="size-3 text-green-500" />
+                              )}
+                            </div>
+                          ))}
+                        </motion.div>
+                      )}
+
+                      {/* Show tool results after streaming is done */}
                       {!message.isStreaming && message.toolCalls && message.toolCalls.length > 0 && (
                         <motion.div 
                           initial={{ opacity: 0, y: 10 }}
@@ -496,6 +556,7 @@ export function ChatPanel() {
                         <SourcingProgress
                           key={task.taskId}
                           taskId={task.taskId}
+                          jobId={task.jobId}
                           jobTitle={task.jobTitle}
                           searchQuery={task.searchQuery}
                           onDismiss={() => handleTaskComplete(task.taskId)}
@@ -521,43 +582,119 @@ export function ChatPanel() {
       >
         <div className="max-w-3xl mx-auto">
           <form onSubmit={handleSubmit} className="relative">
+            {/* Collection Mode Panel */}
+            <AnimatePresence>
+              {showCollectionMode && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                  animate={{ opacity: 1, height: "auto", marginBottom: 12 }}
+                  exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="glass-card rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Users className="size-4 text-foreground/70" />
+                        <span className="text-sm font-medium">Collection Mode</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowCollectionMode(false)}
+                        className="p-1 rounded-md hover:bg-foreground/10 transition-colors"
+                      >
+                        <X className="size-4 text-muted-foreground" />
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Candidates to collect</span>
+                        <span className="font-semibold text-foreground tabular-nums">{candidateCount}</span>
+                      </div>
+                      <Slider
+                        value={[candidateCount]}
+                        onValueChange={(value) => setCandidateCount(value[0])}
+                        min={5}
+                        max={100}
+                        step={5}
+                        className="w-full"
+                      />
+                      <div className="flex justify-between text-[10px] text-muted-foreground/60">
+                        <span>5</span>
+                        <span>Quick (25)</span>
+                        <span>Deep (50)</span>
+                        <span>100</span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground/70">
+                      Your sourcing requests will collect {candidateCount} candidates
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div 
               className={cn(
-                "relative flex items-end gap-3 p-3 rounded-xl glass-card transition-all duration-200",
+                "relative flex flex-col gap-2 p-3 rounded-xl glass-card transition-all duration-200",
                 isLoading && "opacity-50 pointer-events-none"
               )}
             >
-              <Textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask Grok anything..."
-                className="flex-1 min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:outline-none py-1 text-base placeholder:text-muted-foreground/60"
-                disabled={isLoading}
-                rows={1}
-              />
-              <motion.div
-                initial={false}
-                animate={{ 
-                  scale: input.trim() ? 1 : 0.9,
-                  opacity: input.trim() ? 1 : 0.5 
-                }}
-                transition={{ duration: 0.15 }}
-              >
-                <Button
-                  type="submit"
-                  size="icon"
-                  disabled={!input.trim() || isLoading}
-                  className="size-9 rounded-lg bg-foreground text-background hover:bg-foreground/90 disabled:opacity-30"
+              <div className="flex items-end gap-3">
+                <Textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask Grok anything..."
+                  className="flex-1 min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:outline-none py-1 text-base placeholder:text-muted-foreground/60"
+                  disabled={isLoading}
+                  rows={1}
+                />
+                <motion.div
+                  initial={false}
+                  animate={{ 
+                    scale: input.trim() ? 1 : 0.9,
+                    opacity: input.trim() ? 1 : 0.5 
+                  }}
+                  transition={{ duration: 0.15 }}
                 >
-                  {isLoading ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Send className="size-4" />
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={!input.trim() || isLoading}
+                    className="size-9 rounded-lg bg-foreground text-background hover:bg-foreground/90 disabled:opacity-30"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Send className="size-4" />
+                    )}
+                  </Button>
+                </motion.div>
+              </div>
+              
+              {/* Input toolbar */}
+              <div className="flex items-center gap-2 pt-1 border-t border-border/30">
+                <button
+                  type="button"
+                  onClick={() => setShowCollectionMode(!showCollectionMode)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all",
+                    showCollectionMode 
+                      ? "bg-foreground/10 text-foreground" 
+                      : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
                   )}
-                </Button>
-              </motion.div>
+                >
+                  <SlidersHorizontal className="size-3.5" />
+                  <span>Collection</span>
+                  {showCollectionMode && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded bg-foreground/10 text-[10px] tabular-nums">
+                      {candidateCount}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
             <p className="text-center mt-3 text-[10px] text-muted-foreground/50 font-medium tracking-wide">
               Grok may make mistakes · Verify important information

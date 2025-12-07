@@ -58,6 +58,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"
+import { CandidateFullscreenViewer } from "@/components/candidate-fullscreen-viewer"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import {
@@ -67,9 +68,165 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { Copy, Send } from "lucide-react"
 
 type PipelineStage = "all" | "sourced" | "shortlisted" | "rejected"
+
+// email template generator
+function generateOutreachEmail(candidateName: string, jobTitle: string, outreachHook?: string) {
+  const firstName = candidateName.split(" ")[0] || candidateName
+  const hook = outreachHook || `I came across your profile and was really impressed by your work.`
+  
+  return `🚀 Opportunity at xAI - ${jobTitle} ⚡️
+
+Hi ${firstName},
+
+This is a message from xAI. We are a Series C hyper-growth startup and one of the leaders in frontier AI development. The team is building robust, scalable systems that bring Grok, xAI's cutting-edge technology, into real-world applications. As a tight-knit group of exceptionally driven engineers, we tackle some of the most challenging and unsolved problems in AI.
+
+${hook}
+
+We're currently looking for exceptional engineers for our ${jobTitle} role — people who are both hands-on and visionary, who care deeply about elegant engineering and moving fast with purpose.
+
+Would you be open to a short chat to explore how your experience might align with what we're building? I'd love to share more about the problems we're solving — they're truly unlike anything else out there.
+
+Best regards,
+
+[Your Name]
+Technical Recruiting @xAI 🚀 Build AI That Advances Humanity ⚡️`
+}
+
+// contact dialog component
+interface ContactDialogProps {
+  candidate: {
+    id: string
+    display_name?: string
+    github_username?: string
+    email?: string
+    x_username?: string
+    linkedin_url?: string
+  }
+  jobTitle: string
+  outreachHook?: string
+  onContact: () => void
+  trigger: React.ReactNode
+}
+
+function ContactDialog({ candidate, jobTitle, outreachHook, onContact, trigger }: ContactDialogProps) {
+  const [open, setOpen] = useState(false)
+  const candidateName = candidate.display_name || candidate.github_username || "there"
+  const [emailBody, setEmailBody] = useState(() => 
+    generateOutreachEmail(candidateName, jobTitle, outreachHook)
+  )
+  
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen) {
+      setEmailBody(generateOutreachEmail(candidateName, jobTitle, outreachHook))
+    }
+    setOpen(isOpen)
+  }
+  
+  const handleCopy = () => {
+    navigator.clipboard.writeText(emailBody)
+    toast.success("Email copied to clipboard!")
+  }
+  
+  const handleSendEmail = () => {
+    if (candidate.email) {
+      const subject = encodeURIComponent(`🚀 Opportunity at xAI - ${jobTitle} ⚡️`)
+      const body = encodeURIComponent(emailBody)
+      window.open(`mailto:${candidate.email}?subject=${subject}&body=${body}`, "_blank")
+      onContact()
+      setOpen(false)
+    } else {
+      toast.error("No email available for this candidate")
+    }
+  }
+  
+  const handleLinkedIn = () => {
+    if (candidate.linkedin_url) {
+      navigator.clipboard.writeText(emailBody)
+      toast.success("Message copied! Opening LinkedIn...")
+      window.open(candidate.linkedin_url, "_blank")
+      onContact()
+      setOpen(false)
+    }
+  }
+  
+  const handleXDM = () => {
+    if (candidate.x_username) {
+      const username = candidate.x_username.replace("@", "")
+      navigator.clipboard.writeText(emailBody)
+      toast.success("Message copied! Opening X...")
+      window.open(`https://x.com/messages/compose?recipient_id=${username}`, "_blank")
+      onContact()
+      setOpen(false)
+    }
+  }
+  
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        {trigger}
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5 text-primary" />
+            Contact {candidateName}
+          </DialogTitle>
+          <DialogDescription>
+            Customize the outreach message below before sending
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="flex-1 overflow-y-auto space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="email-body">Message</Label>
+            <Textarea
+              id="email-body"
+              value={emailBody}
+              onChange={(e) => setEmailBody(e.target.value)}
+              className="min-h-[300px] font-mono text-sm"
+              placeholder="Your outreach message..."
+            />
+          </div>
+        </div>
+        
+        <DialogFooter className="flex-col sm:flex-row gap-2 border-t pt-4">
+          <Button variant="outline" onClick={handleCopy} className="w-full sm:w-auto">
+            <Copy className="h-4 w-4 mr-2" />
+            Copy Message
+          </Button>
+          
+          <div className="flex gap-2 w-full sm:w-auto">
+            {candidate.x_username && (
+              <Button variant="outline" onClick={handleXDM} className="flex-1">
+                <span className="text-xs font-bold mr-2">𝕏</span>
+                DM
+              </Button>
+            )}
+            {candidate.linkedin_url && (
+              <Button variant="outline" onClick={handleLinkedIn} className="flex-1">
+                <Linkedin className="h-4 w-4 mr-2" />
+                LinkedIn
+              </Button>
+            )}
+            {candidate.email && (
+              <Button onClick={handleSendEmail} className="flex-1">
+                <Send className="h-4 w-4 mr-2" />
+                Send Email
+              </Button>
+            )}
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 const cardVariants = {
   hidden: { opacity: 0, y: 30, scale: 0.95 },
@@ -298,10 +455,11 @@ function EvidenceItemWithFeedback({ content, itemType, itemIndex, jobId, candida
 interface CandidateCardProps {
   jc: JobCandidate
   jobId: string
+  jobTitle: string
   onAction: () => void
 }
 
-function CandidateCard({ jc, jobId, onAction }: CandidateCardProps) {
+function CandidateCard({ jc, jobId, jobTitle, onAction }: CandidateCardProps) {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [currentEvidence, setCurrentEvidence] = useState<EvidenceCard | null>(jc.evidence as unknown as EvidenceCard | null)
@@ -539,16 +697,23 @@ function CandidateCard({ jc, jobId, onAction }: CandidateCardProps) {
          </div>
          
          <div className="flex items-center gap-2">
-           <Button 
-             variant="outline" 
-             size="sm"
-             className="bg-background hover:bg-secondary/50 border-border"
-             onClick={() => trackAction("contact")}
-             disabled={actionLoading !== null}
-           >
-             <Mail className="h-4 w-4 mr-2" />
-             Contact
-           </Button>
+           <ContactDialog
+             candidate={candidate}
+             jobTitle={jobTitle}
+             outreachHook={evidence?.outreach_hook}
+             onContact={() => trackAction("contact")}
+             trigger={
+               <Button 
+                 variant="outline" 
+                 size="sm"
+                 className="bg-background hover:bg-secondary/50 border-border"
+                 disabled={actionLoading !== null}
+               >
+                 <Mail className="h-4 w-4 mr-2" />
+                 Contact
+               </Button>
+             }
+           />
            <Button 
              variant={isShortlisted ? "secondary" : "default"}
              size="sm"
@@ -592,6 +757,9 @@ export default function JobDetailPage() {
   
   // Filter state
   const [stageFilter, setStageFilter] = useState<PipelineStage>("all")
+  
+  // Fullscreen viewer state
+  const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null)
 
   const fetchJob = useCallback(async () => {
     try {
@@ -899,12 +1067,28 @@ export default function JobDetailPage() {
                   animate="visible"
                   exit="exit"
                   layout
+                  onClick={() => setFullscreenIndex(index)}
+                  className="cursor-pointer"
                 >
-                  <CandidateCard jc={jc} jobId={jobId} onAction={fetchCandidates} />
+                  <CandidateCard jc={jc} jobId={jobId} jobTitle={job.title} onAction={fetchCandidates} />
                 </motion.div>
               ))
             )}
           </motion.div>
+        </AnimatePresence>
+
+        {/* Fullscreen Candidate Viewer */}
+        <AnimatePresence>
+          {fullscreenIndex !== null && (
+            <CandidateFullscreenViewer
+              candidates={filteredCandidates}
+              initialIndex={fullscreenIndex}
+              jobId={jobId}
+              jobTitle={job.title}
+              onClose={() => setFullscreenIndex(null)}
+              onAction={fetchCandidates}
+            />
+          )}
         </AnimatePresence>
       </main>
     </div>

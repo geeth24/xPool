@@ -244,24 +244,7 @@ export interface CandidateSearchResponse {
   query?: string
 }
 
-// Sourcing types (X based - legacy)
-export interface SourceRequest {
-  max_results?: number
-  regions?: string[]
-  search_queries?: string[]
-  exclude_influencers?: boolean
-  min_tweets_analyzed?: number
-}
-
-export interface SourceResponse {
-  message: string
-  max_results: number
-  regions?: string[]
-  exclude_influencers: boolean
-  task_id: string
-}
-
-// GitHub Sourcing types (primary method)
+// GitHub Sourcing types
 export interface GitHubSourceRequest {
   search_query: string
   language?: string

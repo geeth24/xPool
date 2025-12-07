@@ -11,10 +11,9 @@ from database import get_db, Job, Candidate, JobCandidate
 from config import settings
 from services.grok_api import grok_client
 from tasks.celery_tasks import (
-    source_candidates_task, 
     source_from_github_task,
     calculate_scores_task,
-    generate_evidence_cards_task
+    generate_evidence_cards_task,
 )
 
 router = APIRouter()
@@ -43,12 +42,8 @@ TOOLS = [
         "function": {
             "name": "list_jobs",
             "description": "List all jobs in the system. Use this to see what positions are open for sourcing.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
     },
     {
         "type": "function",
@@ -60,12 +55,12 @@ TOOLS = [
                 "properties": {
                     "job_id": {
                         "type": "string",
-                        "description": "The ID of the job to get details for"
+                        "description": "The ID of the job to get details for",
                     }
                 },
-                "required": ["job_id"]
-            }
-        }
+                "required": ["job_id"],
+            },
+        },
     },
     {
         "type": "function",
@@ -77,88 +72,60 @@ TOOLS = [
                 "properties": {
                     "title": {
                         "type": "string",
-                        "description": "Job title (e.g., 'Senior iOS Engineer')"
+                        "description": "Job title (e.g., 'Senior iOS Engineer')",
                     },
-                    "description": {
-                        "type": "string",
-                        "description": "Job description"
-                    },
+                    "description": {"type": "string", "description": "Job description"},
                     "keywords": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Keywords for candidate search (e.g., ['Swift', 'iOS', 'SwiftUI'])"
+                        "description": "Keywords for candidate search (e.g., ['Swift', 'iOS', 'SwiftUI'])",
                     },
                     "requirements": {
                         "type": "string",
-                        "description": "Detailed job requirements"
-                    }
-                },
-                "required": ["title"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "start_sourcing",
-            "description": "Start sourcing candidates for a job from X. This finds developers who tweet about relevant technologies.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "job_id": {
-                        "type": "string",
-                        "description": "The job ID to source candidates for"
+                        "description": "Detailed job requirements",
                     },
-                    "max_results": {
-                        "type": "integer",
-                        "description": "Maximum number of candidates to find (default: 20)"
-                    },
-                    "exclude_influencers": {
-                        "type": "boolean",
-                        "description": "Filter out tech influencers who don't actually code (default: true)"
-                    }
                 },
-                "required": ["job_id"]
-            }
-        }
+                "required": ["title"],
+            },
+        },
     },
     {
         "type": "function",
         "function": {
             "name": "start_github_sourcing",
-            "description": "Start sourcing candidates from GitHub. Better for finding verified developers with actual code. Uses comprehensive multi-strategy search including bio search, repo topic search, and contributor discovery.",
+            "description": "Start sourcing candidates from GitHub. Finds verified developers with actual code, then enriches with X profiles. Uses comprehensive multi-strategy search including bio search, repo topic search, and contributor discovery.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "job_id": {
                         "type": "string",
-                        "description": "The job ID to source candidates for"
+                        "description": "The job ID to source candidates for",
                     },
                     "search_query": {
                         "type": "string",
-                        "description": "Search query for GitHub users (e.g., 'iOS developer', 'machine learning engineer')"
+                        "description": "Search query for GitHub users (e.g., 'iOS developer', 'machine learning engineer')",
                     },
                     "language": {
                         "type": "string",
-                        "description": "Primary programming language filter (e.g., 'swift', 'python', 'kotlin')"
+                        "description": "Primary programming language filter (e.g., 'swift', 'python', 'kotlin')",
                     },
                     "location": {
                         "type": "string",
-                        "description": "Location filter (e.g., 'San Francisco', 'remote')"
+                        "description": "Location filter (e.g., 'San Francisco', 'remote')",
                     },
                     "skills": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of skills to search for (e.g., ['Swift', 'SwiftUI', 'iOS']). Used to find repos and contributors."
+                        "description": "List of skills to search for (e.g., ['Swift', 'SwiftUI', 'iOS']). Used to find repos and contributors.",
                     },
                     "max_results": {
                         "type": "integer",
-                        "description": "Maximum number of candidates (default: 20)"
-                    }
+                        "description": "Maximum number of candidates (default: 20)",
+                    },
                 },
-                "required": ["job_id"]
-            }
-        }
+                "required": ["job_id"],
+            },
+        },
     },
     {
         "type": "function",
@@ -170,16 +137,16 @@ TOOLS = [
                 "properties": {
                     "job_id": {
                         "type": "string",
-                        "description": "The job ID to get candidates for"
+                        "description": "The job ID to get candidates for",
                     },
                     "top_k": {
                         "type": "integer",
-                        "description": "Number of top candidates to return (default: 10)"
-                    }
+                        "description": "Number of top candidates to return (default: 10)",
+                    },
                 },
-                "required": ["job_id"]
-            }
-        }
+                "required": ["job_id"],
+            },
+        },
     },
     {
         "type": "function",
@@ -191,19 +158,19 @@ TOOLS = [
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Natural language search query (e.g., 'iOS developers with SwiftUI experience')"
+                        "description": "Natural language search query (e.g., 'iOS developers with SwiftUI experience')",
                     },
                     "top_k": {
                         "type": "integer",
-                        "description": "Number of results to return (default: 10)"
-                    }
+                        "description": "Number of results to return (default: 10)",
+                    },
                 },
-                "required": ["query"]
-            }
-        }
+                "required": ["query"],
+            },
+        },
     },
     {
-        "type": "function", 
+        "type": "function",
         "function": {
             "name": "get_candidate_details",
             "description": "Get detailed information about a specific candidate including their skills, GitHub profile, and tweets.",
@@ -212,12 +179,12 @@ TOOLS = [
                 "properties": {
                     "candidate_id": {
                         "type": "string",
-                        "description": "The candidate ID to get details for"
+                        "description": "The candidate ID to get details for",
                     }
                 },
-                "required": ["candidate_id"]
-            }
-        }
+                "required": ["candidate_id"],
+            },
+        },
     },
     {
         "type": "function",
@@ -229,12 +196,12 @@ TOOLS = [
                 "properties": {
                     "job_id": {
                         "type": "string",
-                        "description": "The job ID to generate evidence for"
+                        "description": "The job ID to generate evidence for",
                     }
                 },
-                "required": ["job_id"]
-            }
-        }
+                "required": ["job_id"],
+            },
+        },
     },
     {
         "type": "function",
@@ -244,32 +211,45 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "task_id": {
-                        "type": "string",
-                        "description": "The task ID to check"
-                    }
+                    "task_id": {"type": "string", "description": "The task ID to check"}
                 },
-                "required": ["task_id"]
-            }
-        }
-    }
+                "required": ["task_id"],
+            },
+        },
+    },
 ]
 
 SYSTEM_PROMPT = """You are an AI recruiting assistant for xPool, a candidate sourcing platform. You help recruiters find and evaluate technical talent.
 
 Your capabilities:
 1. Create job postings with smart keyword generation
-2. Source candidates from X (finds developers by their tweets)
-3. Source candidates from GitHub (finds developers by their code)
-4. Search and filter the candidate database
+2. Source NEW candidates from GitHub (finds developers by their code) - PRIMARY sourcing method
+3. Source candidates from X/Twitter (finds developers by their tweets)
+4. Search EXISTING candidates in database (only for candidates already sourced)
 5. Generate evidence cards explaining why candidates match jobs
 6. Track sourcing tasks and report progress
+
+⚠️ COLLECTION MODE - CRITICAL RULES ⚠️
+When you see "[Collection: X]" in the user's message, this means:
+1. The user wants to SOURCE NEW CANDIDATES from GitHub (NOT search existing database!)
+2. You MUST use start_github_sourcing tool (NOT search_candidates!)
+3. Set max_results=X in your start_github_sourcing call
+4. Create a job first if needed, then immediately start GitHub sourcing
+
+WRONG: Using search_candidates when you see [Collection: X]
+RIGHT: Using start_github_sourcing when you see [Collection: X]
+
+Example: "find iOS devs [Collection: 5]"
+→ Create job for iOS Developer
+→ Call start_github_sourcing with job_id and max_results=5
+
+The search_candidates tool is ONLY for searching candidates that were ALREADY sourced previously.
+Collection mode is for finding NEW candidates from GitHub.
 
 When helping users:
 - Ask clarifying questions if the request is vague (what role? what skills? what location?)
 - Explain what you're doing and why
-- After starting a sourcing task, let them know it runs in the background and offer to check status
-- When showing candidates, highlight the most relevant ones and explain why they match
+- After starting a sourcing task, let them know it runs in the background
 - Be conversational and helpful, not robotic
 
 You have access to tools to perform these actions. Use them proactively to help the user."""
@@ -292,7 +272,7 @@ async def execute_tool(tool_name: str, arguments: Dict, db: Session) -> Dict:
                     for j in jobs
                 ]
             }
-        
+
         elif tool_name == "get_job_details":
             job_id = str(arguments["job_id"]).strip()
             job = db.query(Job).filter(Job.id == job_id).first()
@@ -301,11 +281,11 @@ async def execute_tool(tool_name: str, arguments: Dict, db: Session) -> Dict:
                 job = db.query(Job).filter(Job.title.ilike(f"%{job_id}%")).order_by(Job.created_at.desc()).first()
             if not job:
                 return {"success": False, "error": f"Job not found with id: {job_id}"}
-            
+
             candidate_count = db.query(JobCandidate).filter(
                 JobCandidate.job_id == job.id
             ).count()
-            
+
             return {
                 "success": True,
                 "job": {
@@ -318,14 +298,14 @@ async def execute_tool(tool_name: str, arguments: Dict, db: Session) -> Dict:
                     "created_at": str(job.created_at)
                 }
             }
-        
+
         elif tool_name == "create_job":
             # generate description/keywords if not provided
             title = arguments.get("title")
             description = arguments.get("description")
             keywords = arguments.get("keywords", [])
             requirements = arguments.get("requirements")
-            
+
             if not description or not keywords:
                 # use Grok to generate
                 prompt = f"""Generate job details for: "{title}"
@@ -349,7 +329,7 @@ Respond with JSON:
                         description = description or generated.get("description", "")
                         keywords = keywords or generated.get("keywords", [])
                         requirements = requirements or generated.get("requirements", "")
-            
+
             job = Job(
                 title=title,
                 description=description,
@@ -359,9 +339,9 @@ Respond with JSON:
             db.add(job)
             db.commit()
             db.refresh(job)
-            
+
             print(f"[Chat] Created job: {job.title} with id: {job.id}")
-            
+
             # generate search strategy (bio keywords, repo topics, languages, etc.)
             try:
                 search_strategy = await grok_client.generate_search_strategy(
@@ -376,7 +356,7 @@ Respond with JSON:
                 print(f"[Chat] Generated search strategy for job {job.id}: {search_strategy.get('role_type', 'unknown')}")
             except Exception as e:
                 print(f"[Chat] Failed to generate search strategy: {e}")
-            
+
             return {
                 "success": True,
                 "job_id": job.id,
@@ -388,41 +368,7 @@ Respond with JSON:
                 },
                 "message": f"Created job '{title}' with ID {job.id}. Use job_id='{job.id}' for sourcing."
             }
-        
-        elif tool_name == "start_sourcing":
-            job_id = str(arguments["job_id"]).strip()
-            print(f"[Chat] start_sourcing called with job_id: {job_id}")
-            job = db.query(Job).filter(Job.id == job_id).first()
-            if not job:
-                # try to find by title as fallback
-                job = db.query(Job).filter(Job.title.ilike(f"%{job_id}%")).order_by(Job.created_at.desc()).first()
-                if job:
-                    job_id = job.id
-                    print(f"[Chat] Found job by title match: {job.title} (id: {job_id})")
-                else:
-                    print(f"[Chat] Job not found for id: {job_id}")
-                    return {"success": False, "error": f"Job not found with id: {job_id}"}
-            
-            max_results = arguments.get("max_results", 20)
-            exclude_influencers = arguments.get("exclude_influencers", True)
-            
-            task = source_candidates_task.delay(
-                job_id,
-                max_results,
-                None,  # regions
-                None,  # custom queries
-                exclude_influencers,
-                5,     # min_tweets_analyzed
-                False  # use_full_archive
-            )
-            
-            return {
-                "success": True,
-                "task_id": task.id,
-                "job_title": job.title,
-                "message": f"Started sourcing up to {max_results} candidates for '{job.title}'. Task ID: {task.id}"
-            }
-        
+
         elif tool_name == "start_github_sourcing":
             job_id = str(arguments["job_id"]).strip()
             print(f"[Chat] start_github_sourcing called with job_id: {job_id}")
@@ -436,12 +382,12 @@ Respond with JSON:
                 else:
                     print(f"[Chat] Job not found for id: {job_id}")
                     return {"success": False, "error": f"Job not found with id: {job_id}"}
-            
+
             search_query = arguments.get("search_query", job.title)
             skills = arguments.get("skills", job.keywords)  # use job keywords as fallback
-            
+
             print(f"[Chat] GitHub sourcing: query='{search_query}', skills={skills}, location={arguments.get('location')}")
-            
+
             task = source_from_github_task.delay(
                 job_id,
                 search_query,
@@ -454,20 +400,21 @@ Respond with JSON:
                 False,  # require_x_profile
                 0    # min_dev_score
             )
-            
+
             return {
                 "success": True,
                 "task_id": task.id,
+                "job_id": job_id,
                 "job_title": job.title,
                 "search_query": search_query,
                 "skills": skills,
-                "message": f"Started comprehensive GitHub sourcing for '{job.title}'. Using multi-strategy search with skills: {skills[:5] if skills else 'auto-detected'}. Task ID: {task.id}"
+                "message": f"Started comprehensive GitHub sourcing for '{job.title}'. Using multi-strategy search with skills: {skills[:5] if skills else 'auto-detected'}. Task ID: {task.id}",
             }
-        
+
         elif tool_name == "get_job_candidates":
             job_id = str(arguments["job_id"]).strip()
             top_k = arguments.get("top_k", 10)
-            
+
             job = db.query(Job).filter(Job.id == job_id).first()
             if not job:
                 # try to find by title as fallback
@@ -476,13 +423,13 @@ Respond with JSON:
                     job_id = job.id
             if not job:
                 return {"success": False, "error": f"Job not found with id: {job_id}"}
-            
+
             job_candidates = db.query(JobCandidate).filter(
                 JobCandidate.job_id == job_id
             ).order_by(
                 JobCandidate.match_score.desc().nullslast()
             ).limit(top_k).all()
-            
+
             candidates = []
             for jc in job_candidates:
                 c = jc.candidate
@@ -496,30 +443,30 @@ Respond with JSON:
                     "github_url": c.github_url,
                     "status": jc.status.value if jc.status else "sourced"
                 })
-            
+
             return {
                 "success": True,
                 "job_title": job.title,
                 "total_candidates": len(candidates),
                 "candidates": candidates
             }
-        
+
         elif tool_name == "search_candidates":
             from services.embedding import find_similar_candidates
-            
+
             query = arguments["query"]
             top_k = arguments.get("top_k", 10)
-            
+
             # get all candidate IDs
             all_candidates = db.query(Candidate).all()
             candidate_ids = [c.id for c in all_candidates]
-            
+
             if not candidate_ids:
                 return {"success": True, "candidates": [], "message": "No candidates in database yet"}
-            
+
             # find similar
             similarities = await find_similar_candidates(query, candidate_ids, top_k)
-            
+
             results = []
             for cid, score in similarities:
                 c = db.query(Candidate).filter(Candidate.id == cid).first()
@@ -533,22 +480,22 @@ Respond with JSON:
                         "similarity_score": round(score, 2),
                         "github_url": c.github_url
                     })
-            
+
             return {
                 "success": True,
                 "query": query,
                 "candidates": results
             }
-        
+
         elif tool_name == "get_candidate_details":
             candidate_id = arguments["candidate_id"]
             c = db.query(Candidate).filter(Candidate.id == candidate_id).first()
             if not c:
                 return {"success": False, "error": "Candidate not found"}
-            
+
             tweet_analysis = c.tweet_analysis or {}
             github_profile = tweet_analysis.get("github_profile", {}) or {}
-            
+
             return {
                 "success": True,
                 "candidate": {
@@ -566,7 +513,7 @@ Respond with JSON:
                     "candidate_type": c.candidate_type.value if c.candidate_type else None
                 }
             }
-        
+
         elif tool_name == "generate_evidence_cards":
             job_id = str(arguments["job_id"]).strip()
             job = db.query(Job).filter(Job.id == job_id).first()
@@ -577,31 +524,31 @@ Respond with JSON:
                     job_id = job.id
             if not job:
                 return {"success": False, "error": f"Job not found with id: {job_id}"}
-            
+
             task = generate_evidence_cards_task.delay(job_id)
-            
+
             return {
                 "success": True,
                 "task_id": task.id,
                 "message": f"Started generating evidence cards for '{job.title}'. Task ID: {task.id}"
             }
-        
+
         elif tool_name == "check_task_status":
             from celery_app import celery_app
-            
+
             task_id = arguments["task_id"]
             result = celery_app.AsyncResult(task_id)
-            
+
             return {
                 "success": True,
                 "task_id": task_id,
                 "status": result.status,
                 "result": result.result if result.ready() else None
             }
-        
+
         else:
             return {"success": False, "error": f"Unknown tool: {tool_name}"}
-    
+
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -613,10 +560,10 @@ async def chat_with_tools(messages: List[Dict], db: Session):
         "Authorization": f"Bearer {settings.x_ai_api_bearer_token}",
         "Content-Type": "application/json"
     }
-    
+
     # add system prompt
     full_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
-    
+
     payload = {
         "model": "grok-4-1-fast-non-reasoning",
         "messages": full_messages,
@@ -625,40 +572,40 @@ async def chat_with_tools(messages: List[Dict], db: Session):
         "temperature": 0.7,
         "stream": True
     }
-    
+
     async with httpx.AsyncClient(timeout=120.0) as client:
         async with client.stream("POST", url, headers=headers, json=payload) as response:
             if response.status_code != 200:
                 error_text = await response.aread()
                 yield f"data: {json.dumps({'error': f'API error: {response.status_code}'})}\n\n"
                 return
-            
+
             tool_calls = []
             current_tool_call = None
             content_buffer = ""
-            
+
             async for line in response.aiter_lines():
                 if not line.startswith("data: "):
                     continue
-                
+
                 data = line[6:]
                 if data == "[DONE]":
                     break
-                
+
                 try:
                     chunk = json.loads(data)
                     delta = chunk.get("choices", [{}])[0].get("delta", {})
-                    
+
                     # handle content
                     if "content" in delta and delta["content"]:
                         content_buffer += delta["content"]
                         yield f"data: {json.dumps({'type': 'content', 'content': delta['content']})}\n\n"
-                    
+
                     # handle tool calls
                     if "tool_calls" in delta:
                         for tc in delta["tool_calls"]:
                             idx = tc.get("index", 0)
-                            
+
                             if tc.get("id"):
                                 # new tool call
                                 current_tool_call = {
@@ -676,53 +623,53 @@ async def chat_with_tools(messages: List[Dict], db: Session):
                             elif current_tool_call and tc.get("function", {}).get("arguments"):
                                 # append to existing
                                 current_tool_call["function"]["arguments"] += tc["function"]["arguments"]
-                
+
                 except json.JSONDecodeError:
                     continue
-            
+
             # execute tool calls if any
             if tool_calls:
                 print(f"[Chat] Executing {len(tool_calls)} tool calls: {[tc['function']['name'] for tc in tool_calls]}")
                 yield f"data: {json.dumps({'type': 'tool_start', 'tools': [tc['function']['name'] for tc in tool_calls]})}\n\n"
-                
+
                 tool_results = []
                 created_job_id = None  # track job ID from create_job
-                
+
                 for tc in tool_calls:
                     try:
                         args = json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
                     except json.JSONDecodeError:
                         args = {}
-                    
+
                     tool_name = tc["function"]["name"]
                     print(f"[Chat] Executing tool: {tool_name} with args: {args}")
-                    
+
                     # if this is a sourcing call and we just created a job, use that job_id
-                    if tool_name in ["start_sourcing", "start_github_sourcing"] and created_job_id:
+                    if tool_name == "start_github_sourcing" and created_job_id:
                         if "job_id" not in args or not args.get("job_id"):
                             args["job_id"] = created_job_id
                             print(f"[Chat] Auto-injecting job_id: {created_job_id}")
-                    
+
                     result = await execute_tool(tool_name, args, db)
-                    
+
                     # track created job ID for subsequent calls
                     if tool_name == "create_job" and result.get("success") and result.get("job_id"):
                         created_job_id = result["job_id"]
                         print(f"[Chat] Captured created job_id: {created_job_id}")
-                    
+
                     tool_results.append({
                         "tool_call_id": tc["id"],
                         "role": "tool",
                         "content": json.dumps(result)
                     })
-                    
+
                     yield f"data: {json.dumps({'type': 'tool_result', 'tool': tool_name, 'result': result})}\n\n"
-                
+
                 # continue conversation with tool results - handle potential follow-up tool calls
                 follow_up_messages = full_messages + [
                     {"role": "assistant", "content": content_buffer if content_buffer else None, "tool_calls": tool_calls}
                 ] + tool_results
-                
+
                 # loop to handle chained tool calls (e.g., create_job -> start_sourcing)
                 max_follow_ups = 3  # prevent infinite loops
                 for follow_up_round in range(max_follow_ups):
@@ -734,15 +681,15 @@ async def chat_with_tools(messages: List[Dict], db: Session):
                         "temperature": 0.7,
                         "stream": True
                     }
-                    
+
                     follow_up_tool_calls = []
                     follow_up_content = ""
                     current_follow_up_tool = None
-                    
+
                     async with client.stream("POST", url, headers=headers, json=follow_up_payload) as follow_response:
                         if follow_response.status_code != 200:
                             break
-                            
+
                         async for line in follow_response.aiter_lines():
                             if not line.startswith("data: "):
                                 continue
@@ -752,12 +699,12 @@ async def chat_with_tools(messages: List[Dict], db: Session):
                             try:
                                 chunk = json.loads(data)
                                 delta = chunk.get("choices", [{}])[0].get("delta", {})
-                                
+
                                 # handle content
                                 if "content" in delta and delta["content"]:
                                     follow_up_content += delta["content"]
                                     yield f"data: {json.dumps({'type': 'content', 'content': delta['content']})}\n\n"
-                                
+
                                 # handle tool calls in follow-up
                                 if "tool_calls" in delta:
                                     for tc in delta["tool_calls"]:
@@ -779,51 +726,51 @@ async def chat_with_tools(messages: List[Dict], db: Session):
                                             current_follow_up_tool["function"]["arguments"] += tc["function"]["arguments"]
                             except json.JSONDecodeError:
                                 continue
-                    
+
                     # if no more tool calls, we're done
                     if not follow_up_tool_calls:
                         break
-                    
+
                     # execute follow-up tool calls
                     print(f"[Chat] Follow-up round {follow_up_round + 1}: executing {len(follow_up_tool_calls)} tool calls: {[tc['function']['name'] for tc in follow_up_tool_calls]}")
                     yield f"data: {json.dumps({'type': 'tool_start', 'tools': [tc['function']['name'] for tc in follow_up_tool_calls]})}\n\n"
-                    
+
                     follow_up_tool_results = []
                     for tc in follow_up_tool_calls:
                         try:
                             args = json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
                         except json.JSONDecodeError:
                             args = {}
-                        
+
                         tool_name = tc["function"]["name"]
                         print(f"[Chat] Follow-up executing tool: {tool_name} with args: {args}")
-                        
+
                         # auto-inject job_id if we have one from earlier
-                        if tool_name in ["start_sourcing", "start_github_sourcing"] and created_job_id:
+                        if tool_name == "start_github_sourcing" and created_job_id:
                             if "job_id" not in args or not args.get("job_id"):
                                 args["job_id"] = created_job_id
                                 print(f"[Chat] Auto-injecting job_id: {created_job_id}")
-                        
+
                         result = await execute_tool(tool_name, args, db)
-                        
+
                         # track created job ID
                         if tool_name == "create_job" and result.get("success") and result.get("job_id"):
                             created_job_id = result["job_id"]
                             print(f"[Chat] Captured created job_id: {created_job_id}")
-                        
+
                         follow_up_tool_results.append({
                             "tool_call_id": tc["id"],
                             "role": "tool",
                             "content": json.dumps(result)
                         })
-                        
+
                         yield f"data: {json.dumps({'type': 'tool_result', 'tool': tool_name, 'result': result})}\n\n"
-                    
+
                     # update messages for next round
                     follow_up_messages = follow_up_messages + [
                         {"role": "assistant", "content": follow_up_content if follow_up_content else None, "tool_calls": follow_up_tool_calls}
                     ] + follow_up_tool_results
-            
+
             yield "data: [DONE]\n\n"
 
 
@@ -834,14 +781,17 @@ async def chat_stream(request: ChatRequest, db: Session = Depends(get_db)):
     Streams the response for real-time updates.
     """
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
-    
+
     return StreamingResponse(
         chat_with_tools(messages, db),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
             "Connection": "keep-alive",
-        }
+            "X-Accel-Buffering": "no",  # nginx
+            "X-Content-Type-Options": "nosniff",
+            "Transfer-Encoding": "chunked",
+        },
     )
 
 
@@ -945,4 +895,3 @@ async def get_tasks_status(request: TaskStatusRequest, db: Session = Depends(get
             }
     
     return {"tasks": results}
-

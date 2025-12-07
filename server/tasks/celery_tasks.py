@@ -1065,21 +1065,26 @@ def source_from_github_task(
             generate_evidence_cards_task.delay(job_id)
 
         # Final complete state
-        self.update_state(state='PROGRESS', meta={
-            'stage': 'complete',
-            'stage_label': 'Complete',
-            'progress': 100,
-            'details': {
-                'candidates_found': candidates_added,
-                'candidates_skipped': candidates_skipped,
-                'candidates_with_x': candidates_with_x
-            }
-        })
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "stage": "complete",
+                "stage_label": "Complete",
+                "progress": 100,
+                "details": {
+                    "candidates_found": candidates_added,
+                    "candidates_skipped": candidates_skipped,
+                    "candidates_with_x": candidates_with_x,
+                    "job_id": job_id,
+                },
+            },
+        )
 
         return {
+            "job_id": job_id,
             "candidates_added": candidates_added,
             "candidates_skipped": candidates_skipped,
-            "candidates_with_x": candidates_with_x
+            "candidates_with_x": candidates_with_x,
         }
 
     except Exception as e:

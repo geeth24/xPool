@@ -261,7 +261,7 @@ class CandidateSearchResponse(BaseModel):
     candidates: List[CandidateResponse]
     total: int
     query: Optional[str]
-    
+
 
 # Evidence Feedback schemas
 class EvidenceFeedbackCreate(BaseModel):
@@ -279,21 +279,12 @@ class EvidenceFeedbackResponse(BaseModel):
     feedback_target: Optional[str]
     comment: Optional[str]
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 
-# Sourcing schemas
-class SourceRequest(BaseModel):
-    max_results: int = Field(default=20, ge=1, le=100)
-    regions: Optional[List[str]] = Field(default=None, description="List of regions/countries to filter by (e.g., ['USA', 'UK', 'India'])")
-    search_queries: Optional[List[str]] = Field(default=None, description="Custom search queries to use instead of keywords")
-    exclude_influencers: bool = Field(default=True, description="Filter out influencers and content creators")
-    min_tweets_analyzed: int = Field(default=10, description="Minimum tweets to analyze per user")
-    use_full_archive: bool = Field(default=True, description="Use /tweets/search/all (full archive search, better results)")
-
-
+# GitHub Sourcing schema
 class GitHubSourceRequest(BaseModel):
     search_query: str = Field(..., description="Search query for GitHub users (e.g., 'machine learning engineer')")
     language: Optional[str] = Field(default=None, description="Primary programming language filter (e.g., 'python', 'swift')")
@@ -304,4 +295,3 @@ class GitHubSourceRequest(BaseModel):
     max_results: int = Field(default=20, ge=1, le=100, description="Maximum candidates to source")
     require_x_profile: bool = Field(default=False, description="Only include candidates with X profiles")
     min_dev_score: int = Field(default=50, ge=0, le=100, description="Minimum developer score (0-100)")
-

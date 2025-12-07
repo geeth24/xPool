@@ -2,17 +2,17 @@
 
 import { Bar, BarChart, XAxis, YAxis } from "recharts"
 import * as React from "react"
-import { candidatesApi, Candidate, CandidateType } from "@/lib/api"
+import { jobsApi, Job } from "@/lib/api"
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
 } from "@/components/ui/chart"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const chartConfig = {
-  value: {
-    label: "Value",
+  candidates: {
+    label: "Candidates",
     theme: {
       light: "oklch(0.3211 0 0)",
       dark: "oklch(0.9 0 0)",
@@ -20,73 +20,113 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
+interface JobStats {
+  name: string
+  candidates: number
+  avgScore: number
+  jobId: string
+}
+
 export function Overview() {
-  const [data, setData] = React.useState<{ name: string; value: number }[]>([])
+  const [data, setData] = React.useState<JobStats[]>([])
+  const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
     async function fetchData() {
       try {
-        const candidates = await candidatesApi.list(0, 1000)
+        const jobs = await jobsApi.list()
+        const activeJobs = jobs.filter((j: Job) => j.status === "active")
         
-        const developers = candidates.filter(
-          (c: Candidate) => c.candidate_type === CandidateType.DEVELOPER
+        const jobStats = await Promise.all(
+          activeJobs.map(async (job: Job) => {
+            try {
+              const stats = await jobsApi.getStats(job.id)
+              return {
+                name: job.title.length > 15 ? job.title.substring(0, 15) + "..." : job.title,
+                candidates: stats.total_candidates,
+                avgScore: Math.round(stats.avg_score || 0),
+                jobId: job.id,
+              }
+            } catch {
+              return {
+                name: job.title.length > 15 ? job.title.substring(0, 15) + "..." : job.title,
+                candidates: 0,
+                avgScore: 0,
+                jobId: job.id,
+              }
+            }
+          })
         )
-        const withConfidence = developers.filter((c: Candidate) => c.type_confidence)
-        const avgConfidence = withConfidence.length > 0
-          ? withConfidence.reduce((acc: number, c: Candidate) => acc + (c.type_confidence || 0), 0) / withConfidence.length
-          : 0
         
-        const withSkills = candidates.filter((c: Candidate) => c.skills_extracted && c.skills_extracted.length > 0)
-        const withGithub = candidates.filter((c: Candidate) => c.github_username)
-        const withLocation = candidates.filter((c: Candidate) => c.location)
-        
-        setData([
-          { name: "Sourced", value: candidates.length },
-          { name: "Developers", value: developers.length },
-          { name: "AI Score", value: Math.round(avgConfidence * 100) },
-          { name: "Skills", value: withSkills.length },
-          { name: "GitHub", value: withGithub.length },
-          { name: "Location", value: withLocation.length },
-        ])
+        setData(jobStats)
       } catch (error) {
-        setData([
-          { name: "Sourced", value: 173 },
-          { name: "Developers", value: 142 },
-          { name: "AI Score", value: 85 },
-          { name: "Skills", value: 156 },
-          { name: "GitHub", value: 98 },
-          { name: "Location", value: 67 },
-        ])
+        console.error("Failed to fetch job stats:", error)
+        setData([])
+      } finally {
+        setLoading(false)
       }
     }
     fetchData()
   }, [])
 
+  if (loading) {
+    return (
+      <div className="h-[350px] w-full flex items-center justify-center">
+        <Skeleton className="h-[300px] w-full" />
+      </div>
+    )
+  }
+
+  if (data.length === 0) {
+    return (
+      <div className="h-[350px] w-full flex items-center justify-center text-muted-foreground">
+        No active jobs yet. Create a job to start sourcing.
+      </div>
+    )
+  }
+
   return (
     <ChartContainer config={chartConfig} className="h-[350px] w-full">
-      <BarChart data={data} accessibilityLayer>
+      <BarChart data={data} accessibilityLayer layout="vertical" margin={{ left: 10, right: 30 }}>
         <XAxis
-          dataKey="name"
+          type="number"
           stroke="hsl(var(--muted-foreground))"
           fontSize={12}
           tickLine={false}
           axisLine={false}
         />
         <YAxis
+          dataKey="name"
+          type="category"
           stroke="hsl(var(--muted-foreground))"
           fontSize={12}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(value) => `${value}`}
+          width={100}
         />
         <ChartTooltip
           cursor={{ fill: "hsl(var(--muted)/0.3)" }}
-          content={<ChartTooltipContent />}
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null
+            const item = payload[0].payload as JobStats
+            return (
+              <div className="rounded-lg border bg-background p-3 shadow-md">
+                <p className="font-medium">{item.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {item.candidates} candidates
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Avg match: {item.avgScore}%
+                </p>
+              </div>
+            )
+          }}
         />
         <Bar
-          dataKey="value"
-          fill="var(--color-value)"
-          radius={[4, 4, 0, 0]}
+          dataKey="candidates"
+          fill="var(--color-candidates)"
+          radius={[0, 4, 4, 0]}
+          barSize={32}
         />
       </BarChart>
     </ChartContainer>

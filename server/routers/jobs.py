@@ -10,11 +10,11 @@ from database import get_db, Job, JobCandidate, Candidate, RecruiterAction, Cand
 from models import (
     JobCreate, JobUpdate, JobResponse, 
     JobCandidateCreate, JobCandidateUpdate, JobCandidateResponse,
-    SourceRequest, GitHubSourceRequest, CandidateResponse,
+    GitHubSourceRequest, CandidateResponse,
     RecruiterActionCreate, RecruiterActionResponse,
     EvidenceFeedbackCreate, EvidenceFeedbackResponse
 )
-from tasks.celery_tasks import source_candidates_task, enrich_job_candidates_task, calculate_scores_task, source_from_usernames_task, source_from_github_task, generate_evidence_cards_task
+from tasks.celery_tasks import enrich_job_candidates_task, calculate_scores_task, source_from_usernames_task, source_from_github_task, generate_evidence_cards_task
 from services.embedding import generate_job_embedding, calculate_match_scores
 from services.grok_api import grok_client
 
@@ -32,12 +32,69 @@ class GenerateJobRequest(BaseModel):
     title: str = Field(..., description="Job title to generate details for")
 
 
+class ParseJobDescriptionRequest(BaseModel):
+    """Request to parse a full job description."""
+    job_description: str = Field(..., description="Full job description text to parse")
+
+
 class GenerateJobResponse(BaseModel):
     """Response with generated job details."""
     title: str
     description: str
     keywords: List[str]
     requirements: str
+
+
+@router.post("/parse", response_model=GenerateJobResponse)
+async def parse_job_description(request: ParseJobDescriptionRequest):
+    """
+    Parse a full job description and extract structured fields using Grok AI.
+    """
+    prompt = f"""Parse the following job description and extract structured information:
+
+Job Description:
+\"\"\"
+{request.job_description}
+\"\"\"
+
+Extract:
+1. Job title (concise, e.g. "Senior iOS Developer")
+2. A clean description (2-3 paragraphs summarizing the role)
+3. Technical keywords/skills to search for candidates (8-12 keywords)
+4. Requirements for the ideal candidate
+
+Respond with JSON only:
+{{
+    "title": "The job title...",
+    "description": "The job description...",
+    "keywords": ["keyword1", "keyword2", "keyword3"],
+    "requirements": "The detailed requirements..."
+}}"""
+
+    messages = [
+        {"role": "system", "content": "You are a professional technical recruiter who parses job descriptions. Extract the key information accurately and structure it for candidate sourcing. Focus on technical skills, responsibilities, and requirements."},
+        {"role": "user", "content": prompt}
+    ]
+    
+    response = await grok_client.chat_completion(messages)
+    
+    if not response:
+        raise HTTPException(status_code=500, detail="Failed to parse job description")
+    
+    try:
+        json_match = re.search(r'\{[\s\S]*\}', response)
+        if json_match:
+            parsed = json.loads(json_match.group())
+            return GenerateJobResponse(
+                title=parsed.get("title", ""),
+                description=parsed.get("description", ""),
+                keywords=parsed.get("keywords", []),
+                requirements=parsed.get("requirements", "")
+            )
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Failed to parse AI response")
+    
+    raise HTTPException(status_code=500, detail="Failed to parse job description")
 
 
 @router.post("/generate", response_model=GenerateJobResponse)
@@ -304,41 +361,6 @@ async def update_search_strategy(
         "job_title": job.title,
         "search_strategy": job.search_strategy,
         "message": "Search strategy updated successfully"
-    }
-
-
-@router.post("/{job_id}/source")
-async def trigger_sourcing(job_id: str, request: SourceRequest, db: Session = Depends(get_db)):
-    """
-    Trigger smart candidate sourcing with:
-    - AI-generated search queries
-    - Deep tweet analysis to filter real developers
-    - Region filtering (optional)
-    - Custom search queries (optional)
-    """
-    job = db.query(Job).filter(Job.id == job_id).first()
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    if not job.keywords and not request.search_queries:
-        raise HTTPException(status_code=400, detail="Job has no keywords and no custom queries provided")
-    
-    task = source_candidates_task.delay(
-        job_id, 
-        request.max_results,
-        request.regions,
-        request.search_queries,
-        request.exclude_influencers,
-        request.min_tweets_analyzed,
-        request.use_full_archive
-    )
-    
-    return {
-        "message": f"Smart sourcing started for job {job_id}", 
-        "max_results": request.max_results,
-        "regions": request.regions,
-        "exclude_influencers": request.exclude_influencers,
-        "task_id": task.id
     }
 
 
