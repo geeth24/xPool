@@ -2,8 +2,9 @@
 
 import * as React from "react"
 import { useState, useEffect, useCallback } from "react"
-import { Github, Search, Users, Sparkles, CheckCircle2, Loader2, AlertCircle, X } from "lucide-react"
+import { Github, Search, Users, Sparkles, CheckCircle2, Loader2, AlertCircle, X, ArrowRight } from "lucide-react"
 import { motion } from "motion/react"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
@@ -35,6 +36,7 @@ export function SourcingProgress({
   onComplete,
   onDismiss,
 }: SourcingProgressProps) {
+  const router = useRouter()
   const [status, setStatus] = useState<TaskStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isPolling, setIsPolling] = useState(true)
@@ -103,7 +105,7 @@ export function SourcingProgress({
             {jobTitle || searchQuery || "Finding candidates..."}
           </p>
         </div>
-        {onDismiss && (isComplete || isFailed) && (
+        {onDismiss && (
           <Button variant="ghost" size="icon" className="size-7" onClick={onDismiss}>
             <X className="size-3" />
           </Button>
@@ -171,18 +173,33 @@ export function SourcingProgress({
 
             {/* Complete message */}
             {isComplete && finalResult && (
-              <div className="flex items-center gap-2 text-foreground text-sm pt-1">
-                <CheckCircle2 className="size-4" />
-                <span>
-                  Sourcing complete! Found{" "}
-                  <span className="font-semibold">
-                    {String(finalResult.candidates_added ?? finalResult.candidates_found ?? 0)}
-                  </span>{" "}
-                  candidates
-                  {finalResult.candidates_with_x ? (
-                    <span className="text-muted-foreground"> ({String(finalResult.candidates_with_x)} with X profiles)</span>
-                  ) : null}
-                </span>
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center gap-2 text-foreground text-sm">
+                  <CheckCircle2 className="size-4" />
+                  <span>
+                    Sourcing complete! Found{" "}
+                    <span className="font-semibold">
+                      {String(finalResult.candidates_added ?? finalResult.candidates_found ?? 0)}
+                    </span>{" "}
+                    candidates
+                    {finalResult.candidates_with_x ? (
+                      <span className="text-muted-foreground"> ({String(finalResult.candidates_with_x)} with X profiles)</span>
+                    ) : null}
+                  </span>
+                </div>
+                {finalResult.job_id && (
+                  <Button 
+                    size="sm" 
+                    className="w-full"
+                    onClick={() => {
+                      router.push(`/jobs/${finalResult.job_id}`)
+                      onDismiss?.()
+                    }}
+                  >
+                    View Results
+                    <ArrowRight className="size-4 ml-2" />
+                  </Button>
+                )}
               </div>
             )}
           </>

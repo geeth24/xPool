@@ -445,7 +445,7 @@ export function ChatPanel() {
                         </span>
                       </div>
 
-                      {message.content && (
+                      {message.content ? (
                         <div className={cn(
                           "prose dark:prose-invert max-w-none text-base leading-relaxed wrap-break-word chat-markdown",
                           message.isStreaming && "streaming-text"
@@ -454,7 +454,16 @@ export function ChatPanel() {
                             {message.content}
                           </ReactMarkdown>
                         </div>
-                      )}
+                      ) : message.isStreaming && message.role === "assistant" ? (
+                        <motion.div 
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="flex items-center gap-2 text-muted-foreground"
+                        >
+                          <Loader2 className="size-4 animate-spin" />
+                          <span className="text-sm">Thinking...</span>
+                        </motion.div>
+                      ) : null}
 
                       {/* Only show tool results after streaming is done */}
                       {!message.isStreaming && message.toolCalls && message.toolCalls.length > 0 && (
@@ -481,7 +490,7 @@ export function ChatPanel() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="space-y-3 max-w-3xl mx-auto"
+                      className="space-y-3 max-w-3xl mx-auto pl-12"
                     >
                       {Array.from(activeTasks.values()).map(task => (
                         <SourcingProgress
@@ -489,7 +498,6 @@ export function ChatPanel() {
                           taskId={task.taskId}
                           jobTitle={task.jobTitle}
                           searchQuery={task.searchQuery}
-                          onComplete={() => handleTaskComplete(task.taskId)}
                           onDismiss={() => handleTaskComplete(task.taskId)}
                         />
                       ))}
@@ -723,7 +731,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="w-full max-w-2xl my-2"
+      className="w-full my-2"
     >
       <div className="rounded-xl overflow-hidden glass-card">
         <button
