@@ -1,10 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import logging
 
 from database import create_tables
 from routers import jobs, candidates, chat
 from celery_app import celery_app
+
+# reduce httpx noise
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 @asynccontextmanager
@@ -45,10 +50,19 @@ async def health():
 
 @app.get("/tasks/{task_id}")
 async def get_task_status(task_id: str):
-    """Get the status of a Celery task."""
+    """Get the status of a Celery task with progress info."""
     result = celery_app.AsyncResult(task_id)
-    return {
+    
+    response = {
         "task_id": task_id,
         "status": result.status,
-        "result": result.result if result.ready() else None
+        "result": None
     }
+    
+    if result.ready():
+        response["result"] = result.result
+    elif result.status == "PROGRESS":
+        # return progress metadata for in-progress tasks
+        response["result"] = result.info
+    
+    return response

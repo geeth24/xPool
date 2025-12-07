@@ -56,17 +56,14 @@ function JobCard({ job, onDelete }: { job: JobWithStats; onDelete: () => void })
   useEffect(() => {
     async function fetchStats() {
       try {
-        const candidates = await jobsApi.getCandidates(job.id, 100)
-        const scored = candidates.filter((c) => c.match_score !== null)
-        const avgScore = scored.length > 0
-          ? Math.round(scored.reduce((sum, c) => sum + (c.match_score || 0), 0) / scored.length)
-          : 0
+        const statsData = await jobsApi.getStats(job.id)
         setStats({
-          total: candidates.length,
-          scored: scored.length,
-          avgScore,
+          total: statsData.total_candidates,
+          scored: statsData.scored_candidates,
+          avgScore: statsData.avg_score ? Math.round(statsData.avg_score) : 0,
         })
-      } catch {
+      } catch (error) {
+        console.error("Failed to fetch job stats:", error)
         setStats({ total: 0, scored: 0, avgScore: 0 })
       } finally {
         setLoadingStats(false)
@@ -211,9 +208,7 @@ export default function JobsPage() {
             Manage your open positions.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <CreateJobDialog onCreated={fetchJobs} />
-        </div>
+        <CreateJobDialog onCreated={fetchJobs} />
       </div>
 
       <div className="flex items-center gap-2">

@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     x_ai_api_bearer_token: str = ""
     xai_management_api_key: str = Field(default="", alias="XAI_MANAGEMENT_API_KEY")
     xpool_collection_id: str = "collection_0245356a-f806-4b5d-859e-7c2a720193c3"
-    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./xpool.db")
+    database_url: str = os.getenv("DATABASE_URL", "postgresql://xpool:xpool@localhost:5432/xpool")
     github_token: str = Field(default="", alias="GITHUB_TOKEN")
     
     class Config:

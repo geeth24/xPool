@@ -7,7 +7,8 @@ import enum
 
 from config import settings
 
-engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
+# PostgreSQL doesn't need check_same_thread
+engine = create_engine(settings.database_url)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -69,6 +70,8 @@ class Job(Base):
     requirements = Column(Text)
     status = Column(SQLEnum(JobStatus), default=JobStatus.ACTIVE)
     requirement_embedding = Column(LargeBinary, nullable=True)
+    # AI-generated search strategy for GitHub sourcing
+    search_strategy = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -77,45 +80,50 @@ class Job(Base):
 
 class Candidate(Base):
     __tablename__ = "candidates"
-    
+
     id = Column(String, primary_key=True, default=generate_uuid)
-    
+
     # X (Twitter) identifiers - nullable for GitHub-only candidates
     x_user_id = Column(String, unique=True, nullable=True)
     x_username = Column(String, nullable=True)
-    
+
     # GitHub identifiers - nullable for X-only candidates
     github_id = Column(String, unique=True, nullable=True)
     github_username = Column(String, nullable=True)
-    
+
     display_name = Column(String)
     bio = Column(Text)
     profile_url = Column(String)
     followers_count = Column(Integer, default=0)
     following_count = Column(Integer, default=0)
-    
+
     github_url = Column(String, nullable=True)
     website_url = Column(String, nullable=True)
-    
+
+    # contact info
+    email = Column(String, nullable=True)
+    linkedin_url = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+
     grok_summary = Column(Text, nullable=True)
     raw_tweets = Column(JSON, default=list)
     skills_extracted = Column(JSON, default=list)
-    
+
     codeforces_rating = Column(Integer, nullable=True)
     github_repos_count = Column(Integer, nullable=True)
     years_experience = Column(Integer, nullable=True)
     location = Column(String, nullable=True)
-    
+
     # classification based on tweet analysis
     candidate_type = Column(SQLEnum(CandidateType), default=CandidateType.UNKNOWN)
     type_confidence = Column(Float, nullable=True)  # 0-1 confidence score
     tweet_analysis = Column(JSON, nullable=True)  # detailed analysis from Grok
-    
+
     embedding = Column(LargeBinary, nullable=True)
-    
+
     sourced_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     jobs = relationship("JobCandidate", back_populates="candidate", cascade="all, delete-orphan")
 
 
@@ -190,29 +198,74 @@ class CandidateVerification(Base):
 class EvidenceFeedback(Base):
     """Track user feedback on AI-generated evidence cards for learning."""
     __tablename__ = "evidence_feedback"
-    
+
     id = Column(String, primary_key=True, default=generate_uuid)
     job_id = Column(String, ForeignKey("jobs.id"), nullable=False)
     candidate_id = Column(String, ForeignKey("candidates.id"), nullable=False)
-    
+
     # feedback type: positive or negative
     feedback_type = Column(String, nullable=False)  # "positive" or "negative"
-    
+
     # which part of the evidence was good/bad
     feedback_target = Column(String, nullable=True)  # "match_strength", "signals", "repos", "flags", "questions", "outreach", "overall"
-    
+
     # optional user comment explaining why
     comment = Column(Text, nullable=True)
-    
+
     # snapshot of the evidence at time of feedback
     evidence_snapshot = Column(JSON, nullable=True)
-    
+
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     job = relationship("Job")
     candidate = relationship("Candidate")
 
 
+class RoleSuccessPattern(Base):
+    """
+    MemOS-style memory: stores learned patterns about what makes successful candidates.
+    Updated when recruiters take actions (hire, reject, shortlist).
+    Used to improve ranking and evidence generation.
+    """
+
+    __tablename__ = "role_success_patterns"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+
+    # what role type this pattern applies to (normalized from job titles)
+    role_type = Column(String, nullable=False, unique=True, index=True)
+
+    # learned positive signals from hired/shortlisted candidates
+    successful_skills = Column(JSON, default=list)  # ["Swift", "SwiftUI", "CoreML"]
+    successful_signals = Column(
+        JSON, default=list
+    )  # ["shipped_apps", "oss_contributor", "high_dev_score"]
+    successful_languages = Column(JSON, default=list)  # ["swift", "python"]
+
+    # learned negative signals from rejected candidates
+    rejection_patterns = Column(
+        JSON, default=list
+    )  # ["influencer", "high_follower_low_code", "no_repos"]
+
+    # aggregated profile of successful candidates
+    avg_dev_score = Column(Float, nullable=True)
+    avg_repo_count = Column(Float, nullable=True)
+    avg_followers = Column(Float, nullable=True)
+    preferred_candidate_types = Column(JSON, default=list)  # ["developer"]
+
+    # confidence metrics
+    hire_count = Column(Integer, default=0)
+    shortlist_count = Column(Integer, default=0)
+    reject_count = Column(Integer, default=0)
+    total_actions = Column(Integer, default=0)
+    confidence = Column(Float, default=0.0)  # 0-1, increases with more data
+
+    # which jobs contributed to this pattern
+    source_job_ids = Column(JSON, default=list)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 def create_tables():
     Base.metadata.create_all(bind=engine)
-

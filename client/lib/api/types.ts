@@ -35,6 +35,21 @@ export enum CandidateType {
   UNKNOWN = "unknown",
 }
 
+// Search Strategy - AI-generated search parameters
+export interface SearchStrategy {
+  bio_keywords: string[]
+  repo_topics: string[]
+  languages: string[]
+  location_suggestions: string[]
+  negative_keywords: string[]
+  seniority_signals?: {
+    junior: string[]
+    senior: string[]
+    staff: string[]
+  }
+  role_type: string
+}
+
 // Job types
 export interface JobCreate {
   title: string
@@ -58,6 +73,7 @@ export interface Job {
   keywords: string[]
   requirements?: string
   status: JobStatus
+  search_strategy?: SearchStrategy
   created_at: string
   updated_at: string
 }
@@ -78,6 +94,10 @@ export interface Candidate {
   following_count: number
   github_url?: string
   website_url?: string
+  // contact info
+  email?: string
+  linkedin_url?: string
+  phone?: string
   grok_summary?: string
   skills_extracted: string[]
   codeforces_rating?: number
@@ -246,6 +266,7 @@ export interface GitHubSourceRequest {
   search_query: string
   language?: string
   location?: string
+  skills?: string[]
   min_followers?: number
   min_repos?: number
   max_results?: number
@@ -263,11 +284,30 @@ export interface GitHubSourceResponse {
   task_id: string
 }
 
-// Task status
+// Task status with progress
+export interface TaskProgress {
+  stage: "initializing" | "searching" | "analyzing" | "enriching" | "complete"
+  stage_label: string
+  progress: number
+  details?: {
+    job_id?: string
+    job_title?: string
+    query?: string
+    keywords?: string[]
+    users_found?: number
+    candidates_found?: number
+    candidates_analyzed?: number
+    candidates_skipped?: number
+    candidates_with_x?: number
+    current_user?: string
+    current_query?: string
+  }
+}
+
 export interface TaskStatus {
   task_id: string
-  status: "PENDING" | "STARTED" | "SUCCESS" | "FAILURE" | "RETRY"
-  result?: Record<string, unknown>
+  status: "PENDING" | "STARTED" | "PROGRESS" | "SUCCESS" | "FAILURE" | "RETRY"
+  result?: Record<string, unknown> | TaskProgress
 }
 
 // Stats for dashboard
@@ -278,4 +318,20 @@ export interface DashboardStats {
   developer_accuracy: number
 }
 
-
+// 🧠 Learned Pattern - MemOS-style memory
+export interface LearnedPattern {
+  role_type: string
+  successful_skills: string[]
+  successful_signals: string[]
+  successful_languages: string[]
+  rejection_patterns: string[]
+  avg_dev_score?: number
+  avg_repo_count?: number
+  preferred_candidate_types: string[]
+  confidence: number
+  hire_count: number
+  shortlist_count: number
+  reject_count: number
+  total_actions: number
+  updated_at?: string
+}

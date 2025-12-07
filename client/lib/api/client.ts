@@ -19,6 +19,8 @@ import {
   VerificationStatus,
   EvidenceFeedbackCreate,
   EvidenceFeedback,
+  SearchStrategy,
+  LearnedPattern,
 } from "./types"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
@@ -107,6 +109,14 @@ export const jobsApi = {
       `/jobs/${jobId}/candidates?top_k=${topK}&sort_by=${sortBy}`
     ),
 
+  getStats: (jobId: string) =>
+    fetchApi<{
+      job_id: string
+      total_candidates: number
+      scored_candidates: number
+      avg_score: number | null
+    }>(`/jobs/${jobId}/stats`),
+
   addCandidate: (jobId: string, candidateId: string, data: JobCandidateCreate) =>
     fetchApi<JobCandidate>(`/jobs/${jobId}/candidates/${candidateId}`, {
       method: "POST",
@@ -179,6 +189,61 @@ export const jobsApi = {
       evidence: Record<string, unknown>
     }>(`/jobs/${jobId}/candidates/${candidateId}/regenerate-evidence`, {
       method: "POST",
+    }),
+
+  // 🧠 Memory/Learning endpoints
+  getLearnedPattern: (jobId: string) =>
+    fetchApi<{
+      job_id: string
+      job_title: string
+      role_type: string
+      pattern: LearnedPattern | null
+      message: string
+    }>(`/jobs/${jobId}/memory`),
+
+  getAllPatterns: () =>
+    fetchApi<{
+      patterns: LearnedPattern[]
+      total_patterns: number
+      message: string
+    }>("/jobs/memory/patterns"),
+
+  rebuildPatterns: () =>
+    fetchApi<{
+      message: string
+      patterns_created: number
+      actions_processed: number
+    }>("/jobs/memory/rebuild", { method: "POST" }),
+
+  // Search Strategy endpoints
+  getSearchStrategy: (jobId: string) =>
+    fetchApi<{
+      job_id: string
+      job_title: string
+      search_strategy: SearchStrategy | null
+      has_strategy: boolean
+    }>(`/jobs/${jobId}/search-strategy`),
+
+  generateSearchStrategy: (jobId: string) =>
+    fetchApi<{
+      job_id: string
+      job_title: string
+      search_strategy: SearchStrategy
+      message: string
+    }>(`/jobs/${jobId}/search-strategy/generate`, { method: "POST" }),
+
+  updateSearchStrategy: (
+    jobId: string,
+    update: Partial<Pick<SearchStrategy, "bio_keywords" | "repo_topics" | "languages" | "location_suggestions" | "negative_keywords">>
+  ) =>
+    fetchApi<{
+      job_id: string
+      job_title: string
+      search_strategy: SearchStrategy
+      message: string
+    }>(`/jobs/${jobId}/search-strategy`, {
+      method: "PUT",
+      body: JSON.stringify(update),
     }),
 }
 
@@ -253,6 +318,63 @@ export const candidatesApi = {
 
   getVerifiedCandidates: (skip = 0, limit = 50) =>
     fetchApi<Candidate[]>(`/candidates/verified?skip=${skip}&limit=${limit}`),
+
+  // Semantic Search & Find Similar
+  findSimilar: (candidateId: string, topK = 10, jobId?: string) => {
+    let url = `/candidates/${candidateId}/similar?top_k=${topK}`
+    if (jobId) url += `&job_id=${jobId}`
+    return fetchApi<{
+      source_candidate: {
+        id: string
+        display_name: string
+        github_username: string
+      }
+      similar_candidates: Array<{
+        id: string
+        display_name: string
+        github_username: string
+        x_username: string
+        bio: string
+        skills_extracted: string[]
+        location: string
+        similarity_score: number
+        github_url: string
+        profile_url: string
+      }>
+      total_found: number
+    }>(url)
+  },
+
+  semanticSearch: (query: string, topK = 20, jobId?: string) => {
+    const params = new URLSearchParams({ query, top_k: topK.toString() })
+    if (jobId) params.append("job_id", jobId)
+    return fetchApi<{
+      query: string
+      candidates: Array<{
+        id: string
+        display_name: string
+        github_username: string
+        x_username: string
+        bio: string
+        skills_extracted: string[]
+        location: string
+        relevance_score: number
+        github_url: string
+        profile_url: string
+        grok_summary: string
+      }>
+      total_found: number
+      job_filter: string | null
+    }>(`/candidates/semantic-search?${params.toString()}`, { method: "POST" })
+  },
+
+  uploadToCollection: () =>
+    fetchApi<{
+      message: string
+      uploaded: number
+      errors: number
+      total: number
+    }>("/candidates/upload-to-collection", { method: "POST" }),
 }
 
 // Tasks API

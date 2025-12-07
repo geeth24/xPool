@@ -167,6 +167,172 @@ async def upload_all_to_collection(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/{candidate_id}/similar")
+async def find_similar_to_candidate(
+    candidate_id: str,
+    top_k: int = 10,
+    job_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Find candidates similar to a given candidate using semantic search.
+    Uses xAI Collections to find semantically similar profiles.
+    
+    - candidate_id: The candidate to find similar profiles for
+    - top_k: Number of similar candidates to return
+    - job_id: Optional - limit to candidates in a specific job
+    """
+    from services.embedding import collections_service
+    
+    # Get the source candidate
+    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    
+    # Build a query from the candidate's profile
+    query_parts = []
+    if candidate.bio:
+        query_parts.append(candidate.bio)
+    if candidate.skills_extracted:
+        query_parts.append(" ".join(candidate.skills_extracted[:10]))
+    if candidate.grok_summary:
+        query_parts.append(candidate.grok_summary)
+    
+    if not query_parts:
+        raise HTTPException(status_code=400, detail="Candidate has no profile data for similarity search")
+    
+    query_text = " ".join(query_parts)
+    
+    # Search the collection
+    results = await collections_service.search_candidates(query_text, top_k=top_k + 5)  # get extra to filter
+    
+    # Filter out the source candidate and optionally filter by job
+    # Dedupe results since collection may have multiple chunks per candidate
+    similar_candidates = []
+    seen_ids = set()
+    seen_ids.add(candidate_id)  # exclude source candidate
+    
+    for cid, score in results:
+        if cid in seen_ids:
+            continue
+        seen_ids.add(cid)
+        
+        if job_id:
+            # Check if candidate is in the specified job
+            jc = db.query(JobCandidate).filter(
+                JobCandidate.candidate_id == cid,
+                JobCandidate.job_id == job_id
+            ).first()
+            if not jc:
+                continue
+        
+        c = db.query(Candidate).filter(Candidate.id == cid).first()
+        if c:
+            similar_candidates.append({
+                "id": c.id,
+                "display_name": c.display_name,
+                "github_username": c.github_username,
+                "x_username": c.x_username,
+                "bio": c.bio,
+                "skills_extracted": c.skills_extracted,
+                "location": c.location,
+                "similarity_score": round(score * 100, 1),
+                "github_url": c.github_url,
+                "profile_url": c.profile_url
+            })
+        
+        if len(similar_candidates) >= top_k:
+            break
+    
+    return {
+        "source_candidate": {
+            "id": candidate.id,
+            "display_name": candidate.display_name,
+            "github_username": candidate.github_username
+        },
+        "similar_candidates": similar_candidates,
+        "total_found": len(similar_candidates)
+    }
+
+
+@router.post("/semantic-search")
+async def semantic_search_candidates(
+    query: str,
+    top_k: int = 20,
+    job_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Search candidates using natural language semantic search.
+    Uses xAI Collections to find candidates matching the query.
+    
+    Examples:
+    - "Python developers with machine learning experience"
+    - "iOS engineers who have worked on SwiftUI"
+    - "Backend developers familiar with Kubernetes"
+    """
+    from services.embedding import collections_service
+    
+    if not query or len(query.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Query must be at least 3 characters")
+    
+    # Search the collection - request extra results to account for stale/duplicate IDs
+    results = await collections_service.search_candidates(query.strip(), top_k=top_k * 4)
+    
+    if not results:
+        return {
+            "query": query,
+            "candidates": [],
+            "total_found": 0,
+            "message": "No candidates found. Try uploading candidates to the collection first."
+        }
+    
+    # Fetch full candidate data and optionally filter by job
+    # Note: collection may have stale IDs from previous uploads, so we skip non-existent candidates
+    candidates = []
+    seen_ids = set()  # dedupe results
+    
+    for cid, score in results:
+        if cid in seen_ids:
+            continue
+        seen_ids.add(cid)
+        
+        if job_id:
+            # Check if candidate is in the specified job
+            jc = db.query(JobCandidate).filter(
+                JobCandidate.candidate_id == cid,
+                JobCandidate.job_id == job_id
+            ).first()
+            if not jc:
+                continue
+        
+        c = db.query(Candidate).filter(Candidate.id == cid).first()
+        if c:
+            candidates.append({
+                "id": c.id,
+                "display_name": c.display_name,
+                "github_username": c.github_username,
+                "x_username": c.x_username,
+                "bio": c.bio,
+                "skills_extracted": c.skills_extracted,
+                "location": c.location,
+                "relevance_score": round(score * 100, 1),
+                "github_url": c.github_url,
+                "profile_url": c.profile_url,
+                "grok_summary": c.grok_summary
+            })
+        
+        if len(candidates) >= top_k:
+            break
+    
+    return {
+        "query": query,
+        "candidates": candidates,
+        "total_found": len(candidates),
+        "job_filter": job_id
+    }
+
+
 @router.post("/search", response_model=CandidateSearchResponse)
 async def search_candidates(request: CandidateSearchRequest, db: Session = Depends(get_db)):
     """

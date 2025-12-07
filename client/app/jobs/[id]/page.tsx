@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
-import { jobsApi, Job, JobCandidate, GitHubSourceRequest, CandidateStatus } from "@/lib/api"
+import { jobsApi, candidatesApi, Job, JobCandidate, GitHubSourceRequest, CandidateStatus } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -14,6 +14,7 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -37,10 +38,18 @@ import {
   Info,
   Briefcase,
   MapPin,
-  Sparkles
+  Linkedin,
+  Phone,
+  Globe,
+  Sparkles,
+  UserSearch
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { GrokLogo } from "@/components/ui/grok-logo"
 import { EvidenceCard, EvidenceFeedbackCreate } from "@/lib/api/types"
+import { LearningIndicator } from "@/components/learning-indicator"
+import { SearchStrategyCard } from "@/components/search-strategy-card"
+import { SemanticSearch } from "@/components/semantic-search"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,7 +59,132 @@ import {
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+
 type PipelineStage = "all" | "sourced" | "shortlisted" | "rejected"
+
+// --- Find Similar Button Component ---
+
+interface SimilarCandidate {
+  id: string
+  display_name: string
+  github_username: string
+  x_username: string
+  bio: string
+  skills_extracted: string[]
+  location: string
+  similarity_score: number
+  github_url: string
+  profile_url: string
+}
+
+function FindSimilarButton({ candidateId, candidateName }: { candidateId: string; jobId?: string; candidateName: string }) {
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [similar, setSimilar] = useState<SimilarCandidate[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  const handleFindSimilar = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await candidatesApi.findSimilar(candidateId, 8)
+      setSimilar(result.similar_candidates)
+      if (result.similar_candidates.length === 0) {
+        setError("No similar candidates found. Try uploading more candidates to the collection.")
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to find similar candidates")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-primary hover:bg-primary/10"
+          onClick={() => {
+            setOpen(true)
+            handleFindSimilar()
+          }}
+        >
+          <UserSearch className="h-4 w-4 mr-2" />
+          Find Similar
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Similar to {candidateName}
+          </DialogTitle>
+          <DialogDescription>
+            Candidates with similar skills and experience found using semantic search
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-3 mt-4">
+          {loading && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Searching collection...</span>
+            </div>
+          )}
+          
+          {error && (
+            <div className="text-center py-8 text-muted-foreground">
+              <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
+          
+          {!loading && !error && similar.map((c) => (
+            <div key={c.id} className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+              <Avatar className="h-10 w-10">
+                <AvatarImage src={c.github_username ? `https://github.com/${c.github_username}.png` : undefined} />
+                <AvatarFallback>{(c.display_name || c.github_username || "?").substring(0, 2).toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm">{c.display_name || c.github_username}</span>
+                  <Badge variant="secondary" className="text-xs">{c.similarity_score}% match</Badge>
+                </div>
+                {c.github_username && (
+                  <a href={`https://github.com/${c.github_username}`} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1">
+                    <Github className="h-3 w-3" /> {c.github_username}
+                  </a>
+                )}
+                {c.skills_extracted && c.skills_extracted.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {c.skills_extracted.slice(0, 5).map(skill => (
+                      <Badge key={skill} variant="outline" className="text-[10px] h-5">{skill}</Badge>
+                    ))}
+                  </div>
+                )}
+                {c.location && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                    <MapPin className="h-3 w-3" /> {c.location}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 // --- Components ---
 
@@ -226,7 +360,7 @@ function CandidateCard({ jc, jobId, onAction }: CandidateCardProps) {
                    {isShortlisted && <Badge variant="outline" className="text-emerald-600 bg-emerald-50 border-emerald-200 h-5 text-[10px] px-1.5">Shortlisted</Badge>}
                    {isRejected && <Badge variant="outline" className="text-rose-600 bg-rose-50 border-rose-200 h-5 text-[10px] px-1.5">Rejected</Badge>}
                  </h3>
-                 <div className="flex items-center gap-3 mt-1.5">
+                 <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                     {candidate.github_username && (
                       <a href={`https://github.com/${candidate.github_username}`} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
                         <Github className="h-3.5 w-3.5" /> {candidate.github_username}
@@ -237,21 +371,51 @@ function CandidateCard({ jc, jobId, onAction }: CandidateCardProps) {
                         <span className="text-[10px] font-bold">𝕏</span> @{candidate.x_username.replace("@", "")}
                       </a>
                     )}
+                    {candidate.linkedin_url && (
+                      <a href={candidate.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-blue-600 flex items-center gap-1 transition-colors">
+                        <Linkedin className="h-3.5 w-3.5" /> LinkedIn
+                      </a>
+                    )}
                     {candidate.location && (
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <MapPin className="h-3.5 w-3.5" /> {candidate.location}
                       </span>
                     )}
                  </div>
+                 {/* Contact Info */}
+                 {(candidate.email || candidate.phone || candidate.website_url) && (
+                   <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                      {candidate.email && (
+                        <a href={`mailto:${candidate.email}`} className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors">
+                          <Mail className="h-3.5 w-3.5" /> {candidate.email}
+                        </a>
+                      )}
+                      {candidate.phone && (
+                        <a href={`tel:${candidate.phone}`} className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors">
+                          <Phone className="h-3.5 w-3.5" /> {candidate.phone}
+                        </a>
+                      )}
+                      {candidate.website_url && (
+                        <a href={candidate.website_url} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors">
+                          <Globe className="h-3.5 w-3.5" /> Website
+                        </a>
+                      )}
+                   </div>
+                 )}
                </div>
             </div>
           </div>
 
           <div className="flex flex-col items-end gap-2">
-            {jc.match_score !== null && jc.match_score !== undefined && (
+            {jc.match_score !== null && jc.match_score !== undefined ? (
               <div className={cn("flex items-center gap-2 px-3 py-1 rounded-full border font-bold text-sm shadow-sm", getScoreColor(jc.match_score))}>
-                <Sparkles className="h-3.5 w-3.5" />
+                <GrokLogo className="h-3.5 w-3.5" />
                 {Math.round(jc.match_score)}% Match
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full border font-normal text-sm shadow-sm text-muted-foreground bg-muted/50 border-border">
+                <GrokLogo className="h-3.5 w-3.5 opacity-50" />
+                Not scored
               </div>
             )}
           </div>
@@ -344,16 +508,19 @@ function CandidateCard({ jc, jobId, onAction }: CandidateCardProps) {
       </CardContent>
 
       <CardFooter className="p-4 bg-muted/10 border-t border-border/50 flex items-center justify-between gap-4">
-         <Button 
-           variant="ghost" 
-           size="sm" 
-           className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-           onClick={() => trackAction("reject")}
-           disabled={actionLoading !== null || isRejected}
-         >
-           <X className="h-4 w-4 mr-2" />
-           Pass
-         </Button>
+         <div className="flex items-center gap-2">
+           <Button 
+             variant="ghost" 
+             size="sm" 
+             className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+             onClick={() => trackAction("reject")}
+             disabled={actionLoading !== null || isRejected}
+           >
+             <X className="h-4 w-4 mr-2" />
+             Pass
+           </Button>
+           <FindSimilarButton candidateId={candidate.id} jobId={jobId} candidateName={candidate.display_name || candidate.github_username || "this candidate"} />
+         </div>
          
          <div className="flex items-center gap-2">
            <Button 
@@ -403,6 +570,8 @@ export default function JobDetailPage() {
   const [sourcingOpen, setSourcingOpen] = useState(false)
   const [sourcingQuery, setSourcingQuery] = useState("")
   const [sourcingCount, setSourcingCount] = useState(15)
+  const [sourcingLocation, setSourcingLocation] = useState("")
+  const [sourcingLanguage, setSourcingLanguage] = useState("")
   const [sourcingLoading, setSourcingLoading] = useState(false)
   
   // Filter state
@@ -516,6 +685,8 @@ export default function JobDetailPage() {
         min_followers: 10,
         min_repos: 5,
         min_dev_score: 50,
+        location: sourcingLocation || undefined,
+        language: sourcingLanguage || undefined,
       }
       const result = await jobsApi.sourceGitHub(jobId, request)
       toast.success(`Sourcing ${sourcingCount} candidates...`)
@@ -583,6 +754,7 @@ export default function JobDetailPage() {
             </div>
 
             <div className="flex items-center gap-2">
+              <SemanticSearch jobId={jobId} triggerClassName="h-9" />
               <Sheet open={sourcingOpen} onOpenChange={setSourcingOpen}>
                 <SheetTrigger asChild>
                   <Button variant="outline" size="sm" className="h-9">
@@ -595,20 +767,34 @@ export default function JobDetailPage() {
                     <SheetTitle>Source from GitHub</SheetTitle>
                     <SheetDescription>Find developers matching your requirements</SheetDescription>
                   </SheetHeader>
-                  <div className="mt-6 space-y-4">
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Search Query</label>
-                      <Input value={sourcingQuery} onChange={(e) => setSourcingQuery(e.target.value)} placeholder="e.g. machine learning engineer" />
+                  <div className="flex-1 overflow-y-auto px-4">
+                    <div className="space-y-4 py-4">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Search Query</label>
+                        <Input value={sourcingQuery} onChange={(e) => setSourcingQuery(e.target.value)} placeholder="e.g. machine learning engineer" />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Location</label>
+                        <Input value={sourcingLocation} onChange={(e) => setSourcingLocation(e.target.value)} placeholder="e.g. San Francisco, USA, Remote" />
+                        <p className="text-xs text-muted-foreground mt-1">Filter by location (city, country, or region)</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Programming Language</label>
+                        <Input value={sourcingLanguage} onChange={(e) => setSourcingLanguage(e.target.value)} placeholder="e.g. python, swift, typescript" />
+                        <p className="text-xs text-muted-foreground mt-1">Filter by primary programming language</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Quantity</label>
+                        <Input type="number" min={1} max={50} value={sourcingCount} onChange={(e) => setSourcingCount(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))} />
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Quantity</label>
-                      <Input type="number" min={1} max={50} value={sourcingCount} onChange={(e) => setSourcingCount(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))} />
-                    </div>
+                  </div>
+                  <SheetFooter>
                     <Button onClick={handleSourceGitHub} disabled={sourcingLoading} className="w-full">
                       {sourcingLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Github className="h-4 w-4 mr-2" />}
                       {sourcingLoading ? "Searching..." : "Find Candidates"}
                     </Button>
-                  </div>
+                  </SheetFooter>
                 </SheetContent>
               </Sheet>
 
@@ -637,6 +823,16 @@ export default function JobDetailPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        {/* 🧠 Learning Indicator */}
+        <LearningIndicator jobId={jobId} showDetails={true} />
+
+        {/* 🔍 Search Strategy */}
+        <SearchStrategyCard 
+          jobId={jobId} 
+          jobTitle={job.title}
+          initialStrategy={job.search_strategy}
+        />
+
         {/* Stats & Filters */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
            <Tabs value={stageFilter} onValueChange={(v) => setStageFilter(v as PipelineStage)} className="w-full sm:w-auto">

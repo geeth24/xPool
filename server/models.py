@@ -55,6 +55,17 @@ class JobUpdate(BaseModel):
     status: Optional[JobStatus] = None
 
 
+class SearchStrategy(BaseModel):
+    """AI-generated search strategy for GitHub sourcing."""
+    bio_keywords: List[str] = []
+    repo_topics: List[str] = []
+    languages: List[str] = []
+    location_suggestions: List[str] = []
+    negative_keywords: List[str] = []
+    seniority_signals: Optional[dict] = None
+    role_type: str = "unknown"
+
+
 class JobResponse(BaseModel):
     id: str
     title: str
@@ -62,6 +73,7 @@ class JobResponse(BaseModel):
     keywords: List[str]
     requirements: Optional[str]
     status: JobStatus
+    search_strategy: Optional[SearchStrategy] = None
     created_at: datetime
     updated_at: datetime
     
@@ -110,6 +122,10 @@ class CandidateResponse(BaseModel):
     following_count: int
     github_url: Optional[str]
     website_url: Optional[str]
+    # contact info
+    email: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    phone: Optional[str] = None
     grok_summary: Optional[str]
     skills_extracted: List[str]
     codeforces_rating: Optional[int]
@@ -282,6 +298,7 @@ class GitHubSourceRequest(BaseModel):
     search_query: str = Field(..., description="Search query for GitHub users (e.g., 'machine learning engineer')")
     language: Optional[str] = Field(default=None, description="Primary programming language filter (e.g., 'python', 'swift')")
     location: Optional[str] = Field(default=None, description="Location filter (e.g., 'San Francisco', 'USA')")
+    skills: Optional[List[str]] = Field(default=None, description="List of skills to search for (e.g., ['Swift', 'SwiftUI', 'iOS'])")
     min_followers: int = Field(default=5, ge=0, description="Minimum GitHub followers")
     min_repos: int = Field(default=3, ge=0, description="Minimum public repositories")
     max_results: int = Field(default=20, ge=1, le=100, description="Maximum candidates to source")

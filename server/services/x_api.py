@@ -6,14 +6,14 @@ from config import settings
 
 class XAPIClient:
     BASE_URL = "https://api.x.com/2"
-    
+
     def __init__(self):
         self.bearer_token = settings.x_api_bearer_token
         self.headers = {
             "Authorization": f"Bearer {self.bearer_token}",
             "Content-Type": "application/json"
         }
-    
+
     async def search_tweets(self, query: str, max_results: int = 20, use_full_archive: bool = False) -> List[Dict]:
         """
         Search for tweets matching the query and return tweet data with author info.
@@ -30,22 +30,22 @@ class XAPIClient:
             "expansions": "author_id",
             "user.fields": "id,name,username,description,profile_image_url,public_metrics,url,entities"
         }
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers, params=params)
-            
+
             if response.status_code != 200:
                 print(f"X API error: {response.status_code} - {response.text}")
                 return []
-            
+
             data = response.json()
-            
+
             if "data" not in data:
                 return []
-            
+
             tweets = data.get("data", [])
             users_data = {u["id"]: u for u in data.get("includes", {}).get("users", [])}
-            
+
             results = []
             for tweet in tweets:
                 author_id = tweet.get("author_id")
@@ -54,9 +54,9 @@ class XAPIClient:
                     "tweet": tweet,
                     "user": user
                 })
-            
+
             return results
-    
+
     async def search_users(self, query: str, max_results: int = 100) -> List[Dict]:
         """
         Search for users by query (searches bios, names, usernames).
@@ -77,10 +77,10 @@ class XAPIClient:
             "max_results": min(max_results, 1000),
             "user.fields": "id,name,username,description,profile_image_url,public_metrics,url,entities,location,created_at"
         }
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers, params=params)
-            
+
             if response.status_code == 403:
                 error_data = response.json() if response.text else {}
                 error_detail = error_data.get("detail", "")
@@ -89,48 +89,48 @@ class XAPIClient:
                 else:
                     print(f"X API Users Search requires Pro tier access. Status: 403")
                 return []
-            
+
             if response.status_code != 200:
                 print(f"X API error searching users: {response.status_code} - {response.text[:200]}")
                 return []
-            
+
             data = response.json()
             return data.get("data", [])
-    
+
     async def get_user_by_username(self, username: str) -> Optional[Dict]:
         """Get user profile by username."""
         url = f"{self.BASE_URL}/users/by/username/{username}"
         params = {
             "user.fields": "id,name,username,description,profile_image_url,public_metrics,url,entities,location,created_at"
         }
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers, params=params)
-            
+
             if response.status_code != 200:
                 print(f"X API error getting user: {response.status_code}")
                 return None
-            
+
             data = response.json()
             return data.get("data")
-    
+
     async def get_user_by_id(self, user_id: str) -> Optional[Dict]:
         """Get user profile by ID."""
         url = f"{self.BASE_URL}/users/{user_id}"
         params = {
             "user.fields": "id,name,username,description,profile_image_url,public_metrics,url,entities,location,created_at"
         }
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers, params=params)
-            
+
             if response.status_code != 200:
                 print(f"X API error getting user by ID: {response.status_code}")
                 return None
-            
+
             data = response.json()
             return data.get("data")
-    
+
     async def get_user_tweets(self, user_id: str, max_results: int = 10) -> List[Dict]:
         """Get recent tweets from a user."""
         url = f"{self.BASE_URL}/users/{user_id}/tweets"
@@ -138,24 +138,26 @@ class XAPIClient:
             "max_results": min(max_results, 100),
             "tweet.fields": "created_at,text,public_metrics"
         }
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers, params=params)
-            
+
             if response.status_code != 200:
                 print(f"X API error getting tweets: {response.status_code}")
                 return []
-            
+
             data = response.json()
             return data.get("data", [])
-    
+
     def extract_urls_from_user(self, user: Dict) -> Dict[str, Optional[str]]:
-        """Extract GitHub and website URLs from user profile."""
+        """Extract GitHub, LinkedIn, website URLs and contact info from user profile."""
         github_url = None
         website_url = None
-        
+        linkedin_url = None
+        email = None
+
         bio = user.get("description", "") or ""
-        
+
         github_patterns = [
             r'github\.com/([a-zA-Z0-9_-]+)',
             r'gh\.io/([a-zA-Z0-9_-]+)',
@@ -165,36 +167,63 @@ class XAPIClient:
             if match:
                 github_url = f"https://github.com/{match.group(1)}"
                 break
-        
+
+        # extract linkedin
+        linkedin_patterns = [
+            r"(https?://(?:www\.)?linkedin\.com/in/[\w-]+/?)",
+            r"linkedin\.com/in/([\w-]+)",
+        ]
+        for pattern in linkedin_patterns:
+            match = re.search(pattern, bio, re.IGNORECASE)
+            if match:
+                linkedin_url = (
+                    match.group(1)
+                    if match.group(1).startswith("http")
+                    else f"https://linkedin.com/in/{match.group(1)}"
+                )
+                break
+
+        # extract email from bio
+        email_pattern = r"[\w.+-]+@[\w-]+\.[\w.-]+"
+        email_match = re.search(email_pattern, bio)
+        if email_match:
+            email = email_match.group(0)
+
         entities = user.get("entities", {})
         url_entity = entities.get("url", {})
         urls = url_entity.get("urls", [])
-        
+
         for url_obj in urls:
             expanded_url = url_obj.get("expanded_url", "")
             if "github.com" in expanded_url.lower() and not github_url:
                 github_url = expanded_url
+            elif "linkedin.com" in expanded_url.lower() and not linkedin_url:
+                linkedin_url = expanded_url
             elif not website_url:
                 website_url = expanded_url
-        
+
         desc_urls = entities.get("description", {}).get("urls", [])
         for url_obj in desc_urls:
             expanded_url = url_obj.get("expanded_url", "")
             if "github.com" in expanded_url.lower() and not github_url:
                 github_url = expanded_url
+            elif "linkedin.com" in expanded_url.lower() and not linkedin_url:
+                linkedin_url = expanded_url
             elif not website_url:
                 website_url = expanded_url
-        
+
         return {
             "github_url": github_url,
-            "website_url": website_url
+            "website_url": website_url,
+            "linkedin_url": linkedin_url,
+            "email": email,
         }
-    
+
     def parse_user_to_candidate_data(self, user: Dict, tweets: List[Dict] = None) -> Dict:
         """Convert X API user data to candidate format."""
         urls = self.extract_urls_from_user(user)
         public_metrics = user.get("public_metrics", {})
-        
+
         return {
             "x_user_id": user.get("id"),
             "x_username": user.get("username"),
@@ -205,10 +234,12 @@ class XAPIClient:
             "following_count": public_metrics.get("following_count", 0),
             "github_url": urls.get("github_url"),
             "website_url": urls.get("website_url"),
+            "linkedin_url": urls.get("linkedin_url"),
+            "email": urls.get("email"),
             "location": user.get("location"),
-            "raw_tweets": tweets or []
+            "raw_tweets": tweets or [],
         }
-    
+
     def quick_dev_score(self, user: Dict, tweet_text: str = "") -> int:
         """
         Quick heuristic scoring to prioritize likely developers.
@@ -220,35 +251,35 @@ class XAPIClient:
         username = (user.get("username", "") or "").lower()
         name = (user.get("name", "") or "").lower()
         tweet = tweet_text.lower()
-        
+
         # Strong positive signals (developer indicators)
         dev_keywords = ["developer", "engineer", "dev", "programmer", "coder", "software", "backend", "frontend", "fullstack", "ios dev", "android dev", "web dev"]
         for kw in dev_keywords:
             if kw in bio:
                 score += 15
                 break
-        
+
         # GitHub in bio is a strong signal
         if "github" in bio or "github.com" in bio:
             score += 20
-        
+
         # Tech-specific terms in bio
         tech_terms = ["swift", "swiftui", "react", "python", "javascript", "typescript", "rust", "golang", "kotlin", "flutter", "node", "django", "fastapi", "aws", "docker", "kubernetes"]
         tech_count = sum(1 for t in tech_terms if t in bio)
         score += min(tech_count * 5, 20)
-        
+
         # Negative signals (likely not a developer)
         negative_bio = ["influencer", "coach", "mentor", "tips", "advice", "follow for", "daily", "motivation", "crypto", "nft", "trading", "forex", "marketing", "seo", "growth", "viral"]
         for neg in negative_bio:
             if neg in bio:
                 score -= 15
-        
+
         # Bot/spam patterns
         if re.search(r'\d{5,}', username):  # lots of numbers in username
             score -= 20
         if "bot" in username or "news" in username or "job" in username:
             score -= 30
-        
+
         # Tweet content signals
         if "github.com" in tweet or "pull request" in tweet or "merged" in tweet:
             score += 15
@@ -256,15 +287,14 @@ class XAPIClient:
             score += 10
         if "i built" in tweet or "i shipped" in tweet or "working on" in tweet:
             score += 10
-        
+
         # High follower but low following ratio often = influencer
         followers = user.get("public_metrics", {}).get("followers_count", 0)
         following = user.get("public_metrics", {}).get("following_count", 1)
         if followers > 50000 and following < 500:
             score -= 20  # likely influencer
-        
+
         return max(0, min(100, score))
 
 
 x_api_client = XAPIClient()
-

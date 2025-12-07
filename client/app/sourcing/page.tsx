@@ -26,10 +26,10 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import { jobsApi, tasksApi, Job, GitHubSourceRequest } from "@/lib/api"
+import { jobsApi, tasksApi, Job, GitHubSourceRequest, SearchStrategy } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Clock, Loader2, XCircle, Github, Search, Globe, Code2, Users, SlidersHorizontal, ArrowRight } from "lucide-react"
+import { CheckCircle, Clock, Loader2, XCircle, Github, Search, Globe, Code2, SlidersHorizontal, ArrowRight, Sparkles } from "lucide-react"
 
 const sourcingFormSchema = z.object({
   jobId: z.string().min(1, "Please select a job."),
@@ -68,6 +68,8 @@ export default function SourcingPage() {
   const [taskStatus, setTaskStatus] = React.useState<string | null>(null)
   const [taskResult, setTaskResult] = React.useState<Record<string, unknown> | null>(null)
   const [submitting, setSubmitting] = React.useState(false)
+  const [aiStrategy, setAiStrategy] = React.useState<SearchStrategy | null>(null)
+  const [loadingStrategy, setLoadingStrategy] = React.useState(false)
 
   const form = useForm<SourcingFormValues>({
     resolver: zodResolver(sourcingFormSchema),
@@ -105,14 +107,42 @@ export default function SourcingPage() {
   }, [preselectedJobId, form])
 
   const selectedJobId = form.watch("jobId")
+  
+  const loadAiStrategy = React.useCallback(async (jobId: string) => {
+    setLoadingStrategy(true)
+    try {
+      const result = await jobsApi.getSearchStrategy(jobId)
+      if (result.search_strategy) {
+        setAiStrategy(result.search_strategy)
+        // auto-fill form from strategy
+        if (result.search_strategy.bio_keywords?.length > 0 && !form.getValues("searchQuery")) {
+          form.setValue("searchQuery", result.search_strategy.bio_keywords.slice(0, 3).join(" "))
+        }
+        if (result.search_strategy.languages?.length > 0 && !form.getValues("language")) {
+          form.setValue("language", result.search_strategy.languages[0])
+        }
+        if (result.search_strategy.location_suggestions?.length > 0 && !form.getValues("location")) {
+          form.setValue("location", result.search_strategy.location_suggestions[0])
+        }
+      } else {
+        setAiStrategy(null)
+      }
+    } catch {
+      setAiStrategy(null)
+    } finally {
+      setLoadingStrategy(false)
+    }
+  }, [form])
+
   React.useEffect(() => {
     if (selectedJobId) {
       const job = jobs.find(j => j.id === selectedJobId)
       if (job && !form.getValues("searchQuery")) {
         form.setValue("searchQuery", job.title.toLowerCase())
       }
+      loadAiStrategy(selectedJobId)
     }
-  }, [selectedJobId, jobs, form])
+  }, [selectedJobId, jobs, form, loadAiStrategy])
 
   React.useEffect(() => {
     if (!taskId) return
@@ -121,8 +151,8 @@ export default function SourcingPage() {
       try {
         const status = await tasksApi.getStatus(taskId)
         setTaskStatus(status.status)
-        if (status.result) {
-          setTaskResult(status.result)
+        if (status.result && status.status === "SUCCESS") {
+          setTaskResult(status.result as Record<string, unknown>)
         }
         if (status.status === "SUCCESS" || status.status === "FAILURE") {
           clearInterval(interval)
@@ -243,7 +273,14 @@ export default function SourcingPage() {
                             </FormControl>
                             <SelectContent>
                               {jobs.map((job) => (
-                                <SelectItem key={job.id} value={job.id}>{job.title}</SelectItem>
+                                <SelectItem key={job.id} value={job.id}>
+                                  <div className="flex items-center gap-2">
+                                    {job.title}
+                                    {job.search_strategy && (
+                                      <Sparkles className="h-3 w-3 text-primary" />
+                                    )}
+                                  </div>
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -252,6 +289,40 @@ export default function SourcingPage() {
                         </FormItem>
                       )}
                     />
+
+                    {/* AI Strategy Section */}
+                    {selectedJobId && aiStrategy && (
+                      <div className="rounded-xl border bg-emerald-500/5 border-emerald-500/20 p-4 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-emerald-600" />
+                          <span className="font-medium text-sm text-emerald-700 dark:text-emerald-400">AI Search Strategy</span>
+                          {loadingStrategy && <Loader2 className="h-3 w-3 animate-spin" />}
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap gap-1.5">
+                            {aiStrategy.bio_keywords?.slice(0, 6).map(kw => (
+                              <Badge 
+                                key={kw} 
+                                variant="secondary" 
+                                className="text-xs cursor-pointer hover:bg-emerald-500/20"
+                                onClick={() => {
+                                  const current = form.getValues("searchQuery")
+                                  if (!current.includes(kw)) {
+                                    form.setValue("searchQuery", current ? `${current} ${kw}` : kw)
+                                  }
+                                }}
+                              >
+                                {kw}
+                              </Badge>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Click tags to add to search • {aiStrategy.role_type !== "unknown" && `Role: ${aiStrategy.role_type.replace(/_/g, " ")}`}
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="space-y-4">
                       <FormField

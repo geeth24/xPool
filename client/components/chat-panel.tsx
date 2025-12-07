@@ -2,13 +2,21 @@
 
 import * as React from "react"
 import { useState, useRef, useEffect } from "react"
-import { Send, Loader2, Bot, User, Sparkles, CheckCircle2, AlertCircle, Briefcase, Users, Search, FileText, ChevronRight, ChevronDown, SquareTerminal } from "lucide-react"
+import { Send, Loader2, User, CheckCircle2, AlertCircle, Briefcase, Users, Search, FileText, ChevronRight, ChevronDown, SquareTerminal } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { GrokLogo } from "@/components/ui/grok-logo"
+import { SourcingProgress } from "@/components/sourcing-progress"
+import { SourcingWizard, SourcingConfig } from "@/components/sourcing-wizard"
+
+interface ActiveTask {
+  taskId: string
+  jobTitle?: string
+  searchQuery?: string
+}
 
 interface Message {
   id: string
@@ -16,6 +24,7 @@ interface Message {
   content: string
   toolCalls?: ToolCall[]
   isStreaming?: boolean
+  activeTasks?: ActiveTask[]
 }
 
 interface ToolCall {
@@ -54,18 +63,64 @@ const TOOL_LABELS: Record<string, string> = {
 }
 
 const SUGGESTED_PROMPTS = [
-  { label: "Show open jobs", prompt: "Show me all open jobs" },
-  { label: "Create iOS Job", prompt: "Create a job for Senior iOS Engineer" },
-  { label: "Source Python Devs", prompt: "Find candidates with Python and ML experience" },
-  { label: "Top Candidates", prompt: "Show me the top candidates for the latest job" },
+  { label: "Show open jobs", prompt: "Show me all open jobs", isWizard: false },
+  { label: "Create iOS Job", prompt: "Create a job for Senior iOS Engineer", isWizard: false },
+  { label: "🧙 Guided Sourcing", prompt: "", isWizard: true },
+  { label: "Top Candidates", prompt: "Show me the top candidates for the latest job", isWizard: false },
 ]
 
 export function ChatPanel() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [activeTasks, setActiveTasks] = useState<Map<string, ActiveTask>>(new Map())
+  const [showWizard, setShowWizard] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  const handleTaskComplete = (taskId: string) => {
+    setActiveTasks(prev => {
+      const next = new Map(prev)
+      next.delete(taskId)
+      return next
+    })
+  }
+
+  const handleWizardComplete = async (config: SourcingConfig) => {
+    setShowWizard(false)
+    
+    // build the prompt from wizard config
+    const roleLabel = config.customRole || config.roleType.replace(/_/g, " ")
+    const locationLabel = config.customLocation || config.location.replace(/_/g, " ")
+    const skillsText = config.skills.length > 0 ? config.skills.join(", ") : ""
+    
+    let prompt = `Find ${config.candidateCount} ${roleLabel} candidates from GitHub`
+    if (config.jobId) {
+      prompt += ` for job ID ${config.jobId}`
+    }
+    if (config.location !== "remote") {
+      prompt += ` in ${locationLabel}`
+    }
+    if (skillsText) {
+      prompt += ` with skills in ${skillsText}`
+    }
+    if (config.experienceLevel !== "any") {
+      prompt += ` (${config.experienceLevel} level)`
+    }
+    
+    setInput(prompt)
+    // auto submit after a brief delay
+    setTimeout(() => {
+      const form = document.querySelector("form")
+      if (form) {
+        form.requestSubmit()
+      }
+    }, 100)
+  }
+
+  const handleWizardCancel = () => {
+    setShowWizard(false)
+  }
 
   // auto-scroll to bottom
   useEffect(() => {
@@ -188,6 +243,26 @@ export function ChatPanel() {
                 }
                 return newMessages
               })
+
+              // detect GitHub sourcing tasks and add to active tasks for progress tracking
+              if (parsed.result?.success && parsed.result?.task_id) {
+                const toolName = parsed.tool as string
+                const isGitHubSourcing = toolName === "start_github_sourcing"
+                
+                if (isGitHubSourcing) {
+                  const taskId = parsed.result.task_id as string
+                  const newTask: ActiveTask = {
+                    taskId,
+                    jobTitle: parsed.result.job_title as string | undefined,
+                    searchQuery: parsed.result.search_query as string | undefined,
+                  }
+                  setActiveTasks(prev => {
+                    const next = new Map(prev)
+                    next.set(taskId, newTask)
+                    return next
+                  })
+                }
+              }
             }
           } catch {
             // ignore parse errors
@@ -261,19 +336,37 @@ export function ChatPanel() {
                 {SUGGESTED_PROMPTS.map((item) => (
                   <button
                     key={item.label}
-                    onClick={() => handleSuggestedPrompt(item.prompt)}
-                    className="flex items-center gap-3 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-all text-left group"
+                    onClick={() => item.isWizard ? setShowWizard(true) : handleSuggestedPrompt(item.prompt)}
+                    className={cn(
+                      "flex items-center gap-3 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-all text-left group",
+                      item.isWizard && "border-primary/30 bg-primary/5 hover:bg-primary/10"
+                    )}
                   >
-                    <div className="p-2 rounded-lg bg-muted text-foreground group-hover:scale-110 transition-transform">
-                      <Sparkles className="size-4" />
+                    <div className={cn(
+                      "p-2 rounded-lg text-foreground group-hover:scale-110 transition-transform",
+                      item.isWizard ? "bg-primary/20" : "bg-muted"
+                    )}>
+                      <GrokLogo className="size-4" />
                     </div>
                     <div>
                       <div className="font-semibold text-sm">{item.label}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-1">{item.prompt}</div>
+                      <div className="text-xs text-muted-foreground line-clamp-1">
+                        {item.isWizard ? "Step-by-step sourcing setup" : item.prompt}
+                      </div>
                     </div>
                   </button>
                 ))}
               </div>
+
+              {/* Sourcing Wizard */}
+              {showWizard && (
+                <div className="w-full max-w-xl mx-auto pt-6 animate-message-in">
+                  <SourcingWizard
+                    onComplete={handleWizardComplete}
+                    onCancel={handleWizardCancel}
+                  />
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-8 pb-12">
@@ -324,9 +417,27 @@ export function ChatPanel() {
                         ))}
                       </div>
                     )}
+
                   </div>
                 </div>
               ))}
+
+              {/* Active sourcing tasks */}
+              {activeTasks.size > 0 && (
+                <div className="space-y-3 max-w-3xl mx-auto">
+                  {Array.from(activeTasks.values()).map(task => (
+                    <SourcingProgress
+                      key={task.taskId}
+                      taskId={task.taskId}
+                      jobTitle={task.jobTitle}
+                      searchQuery={task.searchQuery}
+                      onComplete={() => handleTaskComplete(task.taskId)}
+                      onDismiss={() => handleTaskComplete(task.taskId)}
+                    />
+                  ))}
+                </div>
+              )}
+
               <div ref={bottomRef} className="h-4" />
             </div>
           )}
@@ -446,10 +557,22 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
       const candidates = result.candidates as Array<{
         id: string
         x_username?: string
+        github_username?: string
         display_name?: string
         match_score?: number
+        similarity_score?: number
         skills?: string[]
       }>
+      
+      if (candidates.length === 0) {
+        return (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm p-3">
+            <Users className="size-4" />
+            <span>{(result as { message?: string }).message || "No candidates found"}</span>
+          </div>
+        )
+      }
+      
       return (
         <div className="grid gap-2">
           {candidates.slice(0, 4).map((c) => (
@@ -464,14 +587,14 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="font-medium text-sm">
-                      {c.display_name || `@${c.x_username}`}
+                      {c.display_name || c.github_username || `@${c.x_username}`}
                     </p>
-                    {c.match_score !== undefined && (
+                    {(c.match_score !== undefined || c.similarity_score !== undefined) && (
                       <span className={cn(
                         "text-[10px] px-1.5 py-0.5 rounded font-medium",
-                        c.match_score >= 80 ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600"
+                        (c.match_score ?? c.similarity_score ?? 0) >= 80 ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600"
                       )}>
-                        {Math.round(c.match_score)}%
+                        {Math.round(c.match_score ?? c.similarity_score ?? 0)}%
                       </span>
                     )}
                   </div>
@@ -493,8 +616,18 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
       )
     }
 
-    // task started
+    // task started - show minimal indicator since progress component handles the rest
     if ("task_id" in result) {
+      const isGitHubSourcing = toolCall.name === "start_github_sourcing"
+      if (isGitHubSourcing) {
+        // progress component will show details, just show brief confirmation
+        return (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm py-1">
+            <CheckCircle2 className="size-3.5 text-green-500" />
+            <span>Task started - tracking progress below</span>
+          </div>
+        )
+      }
       return (
         <div className="flex items-center gap-3 text-green-600 bg-green-500/5 p-3 rounded-lg border border-green-500/20">
           <CheckCircle2 className="size-4" />

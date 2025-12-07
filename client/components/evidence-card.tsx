@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   GitBranch,
-  Sparkles,
   MessageSquare,
   ChevronDown,
   Copy,
@@ -27,6 +26,7 @@ import {
 import { useState } from "react"
 import { toast } from "sonner"
 import { jobsApi } from "@/lib/api"
+import { GrokLogo } from "@/components/ui/grok-logo"
 
 interface EvidenceCardProps {
   evidence: EvidenceCardType
@@ -444,7 +444,7 @@ export function EvidenceCardComponent({
               <div className="p-3 rounded-lg bg-gradient-to-r from-cyan-500/10 to-violet-500/10 border border-cyan-500/20">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-cyan-400" />
+                    <GrokLogo className="h-4 w-4 text-cyan-400" />
                     <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wide">
                       Personalized Outreach
                     </span>

@@ -116,7 +116,7 @@
   --destructive: oklch(0.396 0.141 25.723);
   
   /* Border: Subtle dark gray (matches X lines) */
-  --border: oklch(0.2 0 0);
+  --border: oklch(0.3 0 0);
   --input: oklch(0.2 0 0);
   --ring: oklch(0.442 0.017 285.786);
   

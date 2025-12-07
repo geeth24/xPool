@@ -329,10 +329,12 @@ Respond with JSON only:
         
         return queries
 
-    async def generate_evidence_card(self, candidate_data: Dict, job_data: Dict) -> Dict:
+    async def generate_evidence_card(self, candidate_data: Dict, job_data: Dict, learned_pattern: Dict = None) -> Dict:
         """
         Generate an evidence card explaining WHY this candidate matches the job.
         This is the killer feature - showing recruiters concrete proof.
+        
+        🧠 SELF-IMPROVING: If learned_pattern is provided, uses it to improve analysis.
         """
         # Extract candidate info - handle None values safely
         tweet_analysis = candidate_data.get("tweet_analysis") or {}
@@ -372,7 +374,14 @@ Respond with JSON only:
                 tweets_text += f"- {tweet_text}\n"
         tweets_text = tweets_text or "No tweets"
         
+        # 🧠 Format learned pattern for injection
+        pattern_context = ""
+        if learned_pattern and learned_pattern.get("confidence", 0) >= 0.2:
+            from services.memory import format_pattern_for_prompt
+            pattern_context = format_pattern_for_prompt(learned_pattern)
+        
         prompt = f"""You are a technical recruiter analyzing a candidate for a specific role. Generate an "Evidence Card" that explains WHY this candidate is a good (or bad) match.
+{pattern_context}
 
 JOB DETAILS:
 - Title: {job_title}
@@ -614,6 +623,81 @@ Respond with JSON only:
                 }
         except (json.JSONDecodeError, ValueError) as e:
             print(f"Failed to parse evidence card response: {e}")
+        
+        return default_result
+
+    async def generate_search_strategy(self, job_title: str, job_description: str = "", keywords: List[str] = None, requirements: str = "") -> Dict:
+        """
+        Generate an optimized GitHub search strategy for a job.
+        Returns bio keywords, repo topics, languages, and location suggestions.
+        """
+        keywords_text = ", ".join(keywords) if keywords else "None provided"
+        
+        prompt = f"""Generate an optimized GitHub search strategy for finding candidates for this role.
+
+Job Title: {job_title}
+Description: {job_description[:500] if job_description else "Not provided"}
+Keywords: {keywords_text}
+Requirements: {requirements[:500] if requirements else "Not provided"}
+
+I need search terms optimized for GitHub's search API. GitHub user search looks at bios and profiles, NOT code.
+
+Provide a JSON response with:
+{{
+    "bio_keywords": ["5-8 keywords to search in user bios, e.g. 'iOS developer', 'Swift', 'mobile engineer'"],
+    "repo_topics": ["5-8 GitHub repo topics to find contributors, e.g. 'ios', 'swiftui', 'react', 'machine-learning'"],
+    "languages": ["2-3 primary programming languages for this role"],
+    "location_suggestions": ["3-5 tech hub locations where these developers are common"],
+    "negative_keywords": ["keywords that indicate NOT a good fit, e.g. 'recruiter', 'hiring manager'"],
+    "seniority_signals": {{
+        "junior": ["signals for junior developers"],
+        "senior": ["signals for senior developers"],
+        "staff": ["signals for staff+ engineers"]
+    }},
+    "role_type": "detected role type like 'ios', 'backend', 'ml_engineer', 'frontend', etc."
+}}
+
+Be specific and practical. Use lowercase for topics (GitHub convention). Only respond with valid JSON."""
+
+        messages = [
+            {"role": "system", "content": "You are a technical recruiting expert who understands GitHub search optimization. Generate practical search strategies."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        response = await self.chat_completion(messages)
+        
+        default_result = {
+            "bio_keywords": [job_title],
+            "repo_topics": [],
+            "languages": [],
+            "location_suggestions": ["San Francisco", "New York", "Seattle", "Austin", "Remote"],
+            "negative_keywords": ["recruiter", "hiring", "hr"],
+            "seniority_signals": {
+                "junior": ["learning", "student", "bootcamp"],
+                "senior": ["lead", "architect", "10+ years"],
+                "staff": ["staff", "principal", "distinguished"]
+            },
+            "role_type": "unknown"
+        }
+        
+        if not response:
+            return default_result
+        
+        try:
+            json_match = re.search(r'\{[\s\S]*\}', response)
+            if json_match:
+                parsed = json.loads(json_match.group())
+                return {
+                    "bio_keywords": parsed.get("bio_keywords", default_result["bio_keywords"]),
+                    "repo_topics": parsed.get("repo_topics", []),
+                    "languages": parsed.get("languages", []),
+                    "location_suggestions": parsed.get("location_suggestions", default_result["location_suggestions"]),
+                    "negative_keywords": parsed.get("negative_keywords", default_result["negative_keywords"]),
+                    "seniority_signals": parsed.get("seniority_signals", default_result["seniority_signals"]),
+                    "role_type": parsed.get("role_type", "unknown")
+                }
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"Failed to parse search strategy response: {e}")
         
         return default_result
 

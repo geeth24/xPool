@@ -4,18 +4,19 @@ import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { Plus, X, Sparkles } from "lucide-react"
+import { Plus, X } from "lucide-react"
+import { GrokLogo } from "@/components/ui/grok-logo"
 
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 import {
   Form,
   FormControl,
@@ -117,21 +118,23 @@ export function CreateJobDialog({ onCreated }: CreateJobDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="default" size="default">
           <Plus className="mr-2 h-4 w-4" /> Create Job
         </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[525px]">
-        <DialogHeader>
-          <DialogTitle>Create New Job</DialogTitle>
-          <DialogDescription>
+      </SheetTrigger>
+      <SheetContent side="right" className="sm:max-w-[525px] flex flex-col">
+        <SheetHeader>
+          <SheetTitle>Create New Job</SheetTitle>
+          <SheetDescription>
             Add a new job position to start sourcing candidates.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} id="create-job-form" className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto px-4 min-h-0">
+              <div className="space-y-4 py-4">
             <FormField
               control={form.control}
               name="title"
@@ -151,11 +154,11 @@ export function CreateJobDialog({ onCreated }: CreateJobDialogProps) {
                       className="shrink-0"
                       title="Generate with Grok AI"
                     >
-                      <Sparkles className={`h-4 w-4 ${generating ? "animate-pulse" : ""}`} />
+                      <GrokLogo className={`h-4 w-4 ${generating ? "animate-pulse" : ""}`} />
                     </Button>
                   </div>
                   <FormDescription>
-                    Enter a title and click <Sparkles className="inline h-3 w-3" /> to auto-fill with Grok AI
+                    Enter a title and click <GrokLogo className="inline h-3 w-3" /> to auto-fill with Grok AI
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -245,15 +248,17 @@ export function CreateJobDialog({ onCreated }: CreateJobDialogProps) {
               )}
             />
 
-            <DialogFooter>
-              <Button type="submit" disabled={loading}>
+              </div>
+            </div>
+            <SheetFooter className="mt-auto shrink-0">
+              <Button type="submit" disabled={loading} className="w-full">
                 {loading ? "Creating..." : "Create Job"}
               </Button>
-            </DialogFooter>
+            </SheetFooter>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   )
 }
 

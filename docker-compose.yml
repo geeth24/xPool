@@ -1,6 +1,20 @@
-version: '3.8'
-
 services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: xpool
+      POSTGRES_PASSWORD: xpool
+      POSTGRES_DB: xpool
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xpool -d xpool"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   redis:
     image: redis:7-alpine
     ports:
@@ -23,10 +37,12 @@ services:
       - ./server:/app
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=sqlite:///./xpool.db
+      - DATABASE_URL=postgresql://xpool:xpool@postgres:5432/xpool
     env_file:
       - .env
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
@@ -39,7 +55,7 @@ services:
       - ./server:/app
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=sqlite:///./xpool.db
+      - DATABASE_URL=postgresql://xpool:xpool@postgres:5432/xpool
     env_file:
       - .env
     depends_on:
@@ -47,22 +63,21 @@ services:
       - server
     command: celery -A celery_app worker --loglevel=info
 
-  client:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./client:/app
-      - /app/node_modules
-      - /app/.next
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-    depends_on:
-      - server
+  # client:
+  #   build:
+  #     context: ./client
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - ./client:/app
+  #     - /app/node_modules
+  #     - /app/.next
+  #   environment:
+  #     - NEXT_PUBLIC_API_URL=http://localhost:8000
+  #   depends_on:
+  #     - server
 
 volumes:
+  postgres_data:
   redis_data:
-
-

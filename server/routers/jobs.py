@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from typing import List, Optional
 from pydantic import BaseModel, Field
 import json
@@ -84,6 +85,31 @@ Respond with JSON only:
     raise HTTPException(status_code=500, detail="Failed to generate job details")
 
 
+async def generate_search_strategy_background(job_id: str):
+    """Background task to generate AI search strategy for a job."""
+    from database import SessionLocal
+    try:
+        db = SessionLocal()
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            return
+        
+        strategy = await grok_client.generate_search_strategy(
+            job_title=job.title,
+            job_description=job.description or "",
+            keywords=job.keywords,
+            requirements=job.requirements or ""
+        )
+        
+        job.search_strategy = strategy
+        db.commit()
+        print(f"Generated search strategy for job {job_id}: {strategy.get('role_type', 'unknown')}")
+    except Exception as e:
+        print(f"Failed to generate search strategy for job {job_id}: {e}")
+    finally:
+        db.close()
+
+
 @router.post("", response_model=JobResponse)
 async def create_job(job: JobCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     db_job = Job(
@@ -96,8 +122,12 @@ async def create_job(job: JobCreate, background_tasks: BackgroundTasks, db: Sess
     db.commit()
     db.refresh(db_job)
     
+    # generate embedding for semantic search
     if job.requirements:
         background_tasks.add_task(generate_job_embedding, db_job.id)
+    
+    # generate AI search strategy
+    background_tasks.add_task(generate_search_strategy_background, db_job.id)
     
     return db_job
 
@@ -114,6 +144,37 @@ async def get_job(job_id: str, db: Session = Depends(get_db)):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+@router.get("/{job_id}/stats")
+async def get_job_stats(job_id: str, db: Session = Depends(get_db)):
+    """Get candidate statistics for a job."""
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    from sqlalchemy import func
+    
+    total_count = db.query(func.count(JobCandidate.id)).filter(
+        JobCandidate.job_id == job_id
+    ).scalar() or 0
+    
+    scored_count = db.query(func.count(JobCandidate.id)).filter(
+        JobCandidate.job_id == job_id,
+        JobCandidate.match_score.isnot(None)
+    ).scalar() or 0
+    
+    avg_score = db.query(func.avg(JobCandidate.match_score)).filter(
+        JobCandidate.job_id == job_id,
+        JobCandidate.match_score.isnot(None)
+    ).scalar()
+    
+    return {
+        "job_id": job_id,
+        "total_candidates": total_count,
+        "scored_candidates": scored_count,
+        "avg_score": round(avg_score, 2) if avg_score else None
+    }
 
 
 @router.put("/{job_id}", response_model=JobResponse)
@@ -145,6 +206,105 @@ async def delete_job(job_id: str, db: Session = Depends(get_db)):
     db.delete(job)
     db.commit()
     return {"message": "Job deleted successfully"}
+
+
+# ==================== Search Strategy Endpoints ====================
+
+class SearchStrategyUpdate(BaseModel):
+    """Request to update search strategy."""
+    bio_keywords: Optional[List[str]] = None
+    repo_topics: Optional[List[str]] = None
+    languages: Optional[List[str]] = None
+    location_suggestions: Optional[List[str]] = None
+    negative_keywords: Optional[List[str]] = None
+
+
+@router.get("/{job_id}/search-strategy")
+async def get_search_strategy(job_id: str, db: Session = Depends(get_db)):
+    """
+    Get the AI-generated search strategy for a job.
+    Returns bio keywords, repo topics, languages, and other search parameters.
+    """
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    return {
+        "job_id": job_id,
+        "job_title": job.title,
+        "search_strategy": job.search_strategy,
+        "has_strategy": job.search_strategy is not None
+    }
+
+
+@router.post("/{job_id}/search-strategy/generate")
+async def generate_search_strategy(job_id: str, db: Session = Depends(get_db)):
+    """
+    Generate an AI-optimized search strategy for a job using Grok.
+    This analyzes the job title, description, and requirements to create
+    optimal search terms for GitHub.
+    """
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    strategy = await grok_client.generate_search_strategy(
+        job_title=job.title,
+        job_description=job.description or "",
+        keywords=job.keywords,
+        requirements=job.requirements or ""
+    )
+    
+    job.search_strategy = strategy
+    db.commit()
+    db.refresh(job)
+    
+    return {
+        "job_id": job_id,
+        "job_title": job.title,
+        "search_strategy": strategy,
+        "message": "Search strategy generated successfully"
+    }
+
+
+@router.put("/{job_id}/search-strategy")
+async def update_search_strategy(
+    job_id: str, 
+    update: SearchStrategyUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Update the search strategy for a job.
+    Allows manual customization of AI-generated search terms.
+    """
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    current_strategy = job.search_strategy or {}
+    
+    if update.bio_keywords is not None:
+        current_strategy["bio_keywords"] = update.bio_keywords
+    if update.repo_topics is not None:
+        current_strategy["repo_topics"] = update.repo_topics
+    if update.languages is not None:
+        current_strategy["languages"] = update.languages
+    if update.location_suggestions is not None:
+        current_strategy["location_suggestions"] = update.location_suggestions
+    if update.negative_keywords is not None:
+        current_strategy["negative_keywords"] = update.negative_keywords
+    
+    job.search_strategy = current_strategy
+    flag_modified(job, "search_strategy")
+    db.commit()
+    db.refresh(job)
+    
+    return {
+        "job_id": job_id,
+        "job_title": job.title,
+        "search_strategy": job.search_strategy,
+        "message": "Search strategy updated successfully"
+    }
 
 
 @router.post("/{job_id}/source")
@@ -267,6 +427,7 @@ async def source_from_github(job_id: str, request: GitHubSourceRequest, db: Sess
         request.search_query,
         request.language,
         request.location,
+        request.skills,
         request.min_followers,
         request.min_repos,
         request.max_results,
@@ -407,12 +568,15 @@ async def track_recruiter_action(
     job_id: str,
     candidate_id: str,
     action: RecruiterActionCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """
     Track recruiter actions for self-improving ranking.
     Actions: view, shortlist, contact, reject, hire
     Also updates the candidate status in the job pipeline.
+    
+    🧠 SELF-IMPROVING: Actions trigger memory updates that improve future rankings.
     """
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
@@ -447,6 +611,11 @@ async def track_recruiter_action(
     db.add(recruiter_action)
     db.commit()
     db.refresh(recruiter_action)
+    
+    # 🧠 Update learned patterns in background (self-improving)
+    if action.action in ["hire", "shortlist", "contact", "reject"]:
+        from services.memory import update_pattern_from_action
+        background_tasks.add_task(update_pattern_from_action, job_id, candidate_id, action.action)
     
     return recruiter_action
 
@@ -606,6 +775,76 @@ async def get_job_evidence_feedback(
     ).order_by(EvidenceFeedback.created_at.desc()).limit(limit).all()
     
     return feedback_list
+
+
+# ==================== Memory/Learning Endpoints ====================
+
+@router.get("/memory/patterns")
+async def get_learned_patterns():
+    """
+    Get all learned role patterns from recruiter actions.
+    Shows what the system has learned about successful candidates per role type.
+    
+    🧠 This is the "memory" of the self-improving system.
+    """
+    from services.memory import get_all_patterns
+    
+    patterns = get_all_patterns()
+    
+    return {
+        "patterns": patterns,
+        "total_patterns": len(patterns),
+        "message": "Learned patterns from recruiter actions"
+    }
+
+
+@router.get("/{job_id}/memory")
+async def get_job_learned_pattern(job_id: str, db: Session = Depends(get_db)):
+    """
+    Get the learned pattern for a specific job's role type.
+    Shows what preferences have been learned for similar roles.
+    """
+    from services.memory import get_pattern_for_job, normalize_role_type
+    
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    pattern = get_pattern_for_job(job_id)
+    role_type = normalize_role_type(job.title)
+    
+    if not pattern:
+        return {
+            "job_id": job_id,
+            "job_title": job.title,
+            "role_type": role_type,
+            "pattern": None,
+            "message": "No patterns learned yet for this role type. Take actions (shortlist, hire, reject) to train the system."
+        }
+    
+    return {
+        "job_id": job_id,
+        "job_title": job.title,
+        "role_type": role_type,
+        "pattern": pattern,
+        "message": f"Pattern learned from {pattern['total_actions']} actions (confidence: {pattern['confidence']:.0%})"
+    }
+
+
+@router.post("/memory/rebuild")
+async def rebuild_memory_patterns():
+    """
+    Rebuild all learned patterns from historical recruiter actions.
+    Use this to reset or initialize the memory system.
+    """
+    from services.memory import rebuild_patterns_from_history
+    
+    result = await rebuild_patterns_from_history()
+    
+    return {
+        "message": "Memory patterns rebuilt from history",
+        **result
+    }
 
 
 @router.post("/{job_id}/candidates/{candidate_id}/regenerate-evidence")

@@ -1,5 +1,6 @@
 from celery import Celery
 import os
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -7,6 +8,10 @@ env_path = Path(__file__).parent.parent / ".env"
 if not env_path.exists():
     env_path = Path(__file__).parent / ".env"
 load_dotenv(dotenv_path=env_path)
+
+# reduce httpx noise - only show warnings
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
@@ -27,6 +32,7 @@ celery_app.conf.update(
     task_time_limit=600,
     worker_prefetch_multiplier=1,
     task_acks_late=True,
+    worker_hijack_root_logger=False,  # prevent celery from hijacking root logger
 )
 
 

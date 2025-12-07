@@ -126,7 +126,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "start_github_sourcing",
-            "description": "Start sourcing candidates from GitHub. Better for finding verified developers with actual code.",
+            "description": "Start sourcing candidates from GitHub. Better for finding verified developers with actual code. Uses comprehensive multi-strategy search including bio search, repo topic search, and contributor discovery.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -136,15 +136,20 @@ TOOLS = [
                     },
                     "search_query": {
                         "type": "string",
-                        "description": "Search query for GitHub users (e.g., 'machine learning engineer')"
+                        "description": "Search query for GitHub users (e.g., 'iOS developer', 'machine learning engineer')"
                     },
                     "language": {
                         "type": "string",
-                        "description": "Programming language filter (e.g., 'python', 'swift')"
+                        "description": "Primary programming language filter (e.g., 'swift', 'python', 'kotlin')"
                     },
                     "location": {
                         "type": "string",
-                        "description": "Location filter (e.g., 'San Francisco')"
+                        "description": "Location filter (e.g., 'San Francisco', 'remote')"
+                    },
+                    "skills": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of skills to search for (e.g., ['Swift', 'SwiftUI', 'iOS']). Used to find repos and contributors."
                     },
                     "max_results": {
                         "type": "integer",
@@ -398,6 +403,7 @@ Respond with JSON:
             return {
                 "success": True,
                 "task_id": task.id,
+                "job_title": job.title,
                 "message": f"Started sourcing up to {max_results} candidates for '{job.title}'. Task ID: {task.id}"
             }
         
@@ -415,11 +421,17 @@ Respond with JSON:
                     print(f"[Chat] Job not found for id: {job_id}")
                     return {"success": False, "error": f"Job not found with id: {job_id}"}
             
+            search_query = arguments.get("search_query", job.title)
+            skills = arguments.get("skills", job.keywords)  # use job keywords as fallback
+            
+            print(f"[Chat] GitHub sourcing: query='{search_query}', skills={skills}, location={arguments.get('location')}")
+            
             task = source_from_github_task.delay(
                 job_id,
-                arguments.get("search_query", job.title),
+                search_query,
                 arguments.get("language"),
                 arguments.get("location"),
+                skills,  # pass skills for comprehensive search
                 0,   # min_followers
                 0,   # min_repos
                 arguments.get("max_results", 20),
@@ -430,7 +442,10 @@ Respond with JSON:
             return {
                 "success": True,
                 "task_id": task.id,
-                "message": f"Started GitHub sourcing for '{job.title}'. Task ID: {task.id}"
+                "job_title": job.title,
+                "search_query": search_query,
+                "skills": skills,
+                "message": f"Started comprehensive GitHub sourcing for '{job.title}'. Using multi-strategy search with skills: {skills[:5] if skills else 'auto-detected'}. Task ID: {task.id}"
             }
         
         elif tool_name == "get_job_candidates":
