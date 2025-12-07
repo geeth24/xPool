@@ -215,6 +215,63 @@ class GitHubAPIClient:
         )
         return list(usernames)
 
+    def _is_low_quality_username(self, username: str) -> bool:
+        """Filter out usernames that are likely not real developers."""
+        if not username:
+            return True
+
+        username_lower = username.lower()
+
+        # patterns that indicate generic/spam accounts
+        low_quality_patterns = [
+            "front-end-",
+            "frontend-",
+            "back-end-",
+            "backend-",
+            "-developer",
+            "-dev-",
+            "-engineer",
+            "-coder",
+            "-programmer",
+            "interview-questions",
+            "-bot",
+            "-course",
+            "-tutorial",
+            "-learning",
+            "-example",
+            "-sample",
+            "-test",
+            "-demo",
+        ]
+
+        for pattern in low_quality_patterns:
+            if pattern in username_lower:
+                return True
+
+        # usernames that are just role names
+        generic_names = [
+            "front-end",
+            "frontend",
+            "back-end",
+            "backend",
+            "fullstack",
+            "full-stack",
+            "developer",
+            "engineer",
+            "programmer",
+            "coder",
+            "webdev",
+            "webdeveloper",
+        ]
+
+        # check if username is mostly generic terms
+        parts = username_lower.replace("-", "_").split("_")
+        generic_count = sum(1 for p in parts if p in generic_names or p.isdigit())
+        if len(parts) > 0 and generic_count / len(parts) > 0.5:
+            return True
+
+        return False
+
     async def search_users_comprehensive(
         self,
         query: str,
@@ -248,6 +305,7 @@ class GitHubAPIClient:
         print(f"[GitHub API] Detected role type: {role_type}")
 
         # STRATEGY 1: Simple bio-based searches with role keywords
+        # Use "in:bio" to search in bio text, not usernames
         bio_queries = []
 
         # use role-specific bio keywords if available
@@ -259,13 +317,19 @@ class GitHubAPIClient:
             query_words = query.split()[:3]
             bio_queries.extend(query_words)
 
-        # build queries with filters
+        # build queries with filters - require minimum activity
         for bio_keyword in bio_queries:
-            query_parts = [bio_keyword, "type:user"]
+            # search in bio specifically to avoid matching usernames
+            query_parts = [
+                f"{bio_keyword} in:bio",
+                "type:user",
+                "repos:>=3",
+                "followers:>=5",
+            ]
 
-            if min_followers > 0:
+            if min_followers > 5:
                 query_parts.append(f"followers:>={min_followers}")
-            if min_repos > 0:
+            if min_repos > 3:
                 query_parts.append(f"repos:>={min_repos}")
 
             users = await self._search_users_single(
@@ -273,14 +337,19 @@ class GitHubAPIClient:
             )
             for user in users:
                 username = user.get("login")
-                if username and username not in seen_usernames:
+                # filter out low-quality usernames
+                if (
+                    username
+                    and username not in seen_usernames
+                    and not self._is_low_quality_username(username)
+                ):
                     seen_usernames.add(username)
                     all_users.append(user)
 
             await asyncio.sleep(0.5)  # rate limit
 
         # STRATEGY 2: Location-based search if specified
-        if location and location != "remote":
+        if location and location.lower() not in ["remote", "anywhere"]:
             location_clean = location.replace("_", " ")
 
             # map common location codes
@@ -289,21 +358,30 @@ class GitHubAPIClient:
                 "sf_bay": "San Francisco",
                 "nyc": "New York",
                 "us": "United States",
+                "usa": "United States",
                 "uk": "United Kingdom",
             }
             location_search = location_map.get(location.lower(), location_clean)
 
             for bio_keyword in bio_queries[:2]:
-                query_parts = [bio_keyword, f"location:{location_search}", "type:user"]
-                if min_followers > 0:
-                    query_parts.append(f"followers:>={min_followers}")
+                query_parts = [
+                    f"{bio_keyword} in:bio",
+                    f"location:{location_search}",
+                    "type:user",
+                    "repos:>=3",
+                    "followers:>=5",
+                ]
 
                 users = await self._search_users_single(
                     " ".join(query_parts), max_results=20
                 )
                 for user in users:
                     username = user.get("login")
-                    if username and username not in seen_usernames:
+                    if (
+                        username
+                        and username not in seen_usernames
+                        and not self._is_low_quality_username(username)
+                    ):
                         seen_usernames.add(username)
                         all_users.append(user)
 
@@ -350,19 +428,24 @@ class GitHubAPIClient:
         search_languages = strategy.get("languages", [language] if language else [])
         for lang in search_languages[:2]:
             if lang:
-                # search for users with this language in their profile
-                query_parts = [f"language:{lang}", "type:user"]
-                if min_followers > 0:
-                    query_parts.append(f"followers:>={min_followers}")
-                if min_repos > 0:
-                    query_parts.append(f"repos:>={min_repos}")
+                # search for users with this language - require minimum activity
+                query_parts = [
+                    f"language:{lang}",
+                    "type:user",
+                    "repos:>=5",
+                    "followers:>=10",
+                ]
 
                 users = await self._search_users_single(
                     " ".join(query_parts), max_results=20
                 )
                 for user in users:
                     username = user.get("login")
-                    if username and username not in seen_usernames:
+                    if (
+                        username
+                        and username not in seen_usernames
+                        and not self._is_low_quality_username(username)
+                    ):
                         seen_usernames.add(username)
                         all_users.append(user)
 

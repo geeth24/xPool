@@ -635,16 +635,30 @@ async def chat_with_tools(messages: List[Dict], db: Session):
                 tool_results = []
                 created_job_id = None  # track job ID from create_job
 
-                for tc in tool_calls:
+                # first pass: execute create_job first to get job_id for subsequent calls
+                create_job_calls = [
+                    tc for tc in tool_calls if tc["function"]["name"] == "create_job"
+                ]
+                other_calls = [
+                    tc for tc in tool_calls if tc["function"]["name"] != "create_job"
+                ]
+
+                # reorder: create_job first, then others
+                ordered_tool_calls = create_job_calls + other_calls
+
+                for tc in ordered_tool_calls:
                     try:
                         args = json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as e:
+                        print(
+                            f"[Chat] JSON decode error for {tc['function']['name']}: {e}, raw args: {tc['function']['arguments']}"
+                        )
                         args = {}
 
                     tool_name = tc["function"]["name"]
                     print(f"[Chat] Executing tool: {tool_name} with args: {args}")
 
-                    # if this is a sourcing call and we just created a job, use that job_id
+                    # if this is a sourcing call and we have a job_id from create_job, inject it
                     if tool_name == "start_github_sourcing" and created_job_id:
                         if "job_id" not in args or not args.get("job_id"):
                             args["job_id"] = created_job_id
@@ -735,11 +749,27 @@ async def chat_with_tools(messages: List[Dict], db: Session):
                     print(f"[Chat] Follow-up round {follow_up_round + 1}: executing {len(follow_up_tool_calls)} tool calls: {[tc['function']['name'] for tc in follow_up_tool_calls]}")
                     yield f"data: {json.dumps({'type': 'tool_start', 'tools': [tc['function']['name'] for tc in follow_up_tool_calls]})}\n\n"
 
+                    # reorder: create_job first, then others
+                    follow_up_create_jobs = [
+                        tc
+                        for tc in follow_up_tool_calls
+                        if tc["function"]["name"] == "create_job"
+                    ]
+                    follow_up_others = [
+                        tc
+                        for tc in follow_up_tool_calls
+                        if tc["function"]["name"] != "create_job"
+                    ]
+                    ordered_follow_up_calls = follow_up_create_jobs + follow_up_others
+
                     follow_up_tool_results = []
-                    for tc in follow_up_tool_calls:
+                    for tc in ordered_follow_up_calls:
                         try:
                             args = json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
-                        except json.JSONDecodeError:
+                        except json.JSONDecodeError as e:
+                            print(
+                                f"[Chat] Follow-up JSON decode error for {tc['function']['name']}: {e}, raw args: {tc['function']['arguments']}"
+                            )
                             args = {}
 
                         tool_name = tc["function"]["name"]
@@ -786,11 +816,13 @@ async def chat_stream(request: ChatRequest, db: Session = Depends(get_db)):
         chat_with_tools(messages, db),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",  # nginx
             "X-Content-Type-Options": "nosniff",
-            "Transfer-Encoding": "chunked",
+            "Content-Encoding": "identity",  # prevent gzip buffering
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Expose-Headers": "*",
         },
     )
 

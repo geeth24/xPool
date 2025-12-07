@@ -830,12 +830,61 @@ def source_from_github_task(
         print(f"[Celery] Found {len(github_users)} GitHub users")
 
         # Update progress
-        self.update_state(state='PROGRESS', meta={
-            'stage': 'analyzing',
-            'stage_label': f'Analyzing {len(github_users)} profiles...',
-            'progress': 25,
-            'details': {'users_found': len(github_users)}
-        })
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "stage": "filtering",
+                "stage_label": f"AI filtering {len(github_users)} users...",
+                "progress": 20,
+                "details": {"users_found": len(github_users)},
+            },
+        )
+
+        # 🧠 Use Grok to filter and rank candidates
+        print(f"[Celery] 🧠 Using Grok to filter {len(github_users)} GitHub users...")
+
+        # First, fetch basic profile info for each user for Grok to analyze
+        users_with_info = []
+        for gh_user in github_users[:50]:  # limit to 50 for API
+            username = gh_user.get("login")
+            if username:
+                profile = run_async(github_client.get_user_profile(username))
+                if profile:
+                    users_with_info.append(profile)
+
+        if users_with_info:
+            job_keywords = job.keywords if isinstance(job.keywords, list) else []
+            filtered_users = run_async(
+                grok_client.filter_github_candidates(
+                    users_with_info,
+                    job.title,
+                    job_keywords,
+                    preferred_location=location,  # pass location preference to Grok
+                )
+            )
+
+            if filtered_users:
+                # Map back to original user objects
+                filtered_usernames = {u.get("login") for u in filtered_users}
+                github_users = [
+                    u for u in github_users if u.get("login") in filtered_usernames
+                ]
+                print(
+                    f"[Celery] 🧠 Grok filtered to {len(github_users)} qualified candidates"
+                )
+            else:
+                print(f"[Celery] 🧠 Grok filter returned empty, using original list")
+
+        # Update progress
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "stage": "analyzing",
+                "stage_label": f"Analyzing {len(github_users)} profiles...",
+                "progress": 30,
+                "details": {"users_found": len(github_users)},
+            },
+        )
 
         candidates_added = 0
         candidates_skipped = 0
@@ -867,8 +916,9 @@ def source_from_github_task(
                 Candidate.github_url.contains(username)
             ).first()
             if existing:
-                print(f"[Celery] Skipping @{username} - already in DB")
-                if not any(jc.job_id == job_id for jc in existing.jobs):
+                # check if already attached to this job
+                already_attached = any(jc.job_id == job_id for jc in existing.jobs)
+                if not already_attached:
                     job_candidate = JobCandidate(
                         job_id=job_id,
                         candidate_id=existing.id,
@@ -877,6 +927,12 @@ def source_from_github_task(
                     )
                     db.add(job_candidate)
                     db.commit()
+                    candidates_added += 1
+                    print(f"[Celery] ✅ Attached existing @{username} to job")
+                else:
+                    print(
+                        f"[Celery] Skipping @{username} - already attached to this job"
+                    )
                 continue
 
             # get full GitHub profile

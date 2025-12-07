@@ -7,14 +7,14 @@ from config import settings
 
 class GrokAPIClient:
     BASE_URL = "https://api.x.ai/v1"
-    
+
     def __init__(self):
         self.api_key = settings.x_ai_api_bearer_token
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-    
+
     async def chat_completion(self, messages: List[Dict], model: str = "grok-4-1-fast-non-reasoning") -> Optional[str]:
         """Send a chat completion request to Grok API."""
         url = f"{self.BASE_URL}/chat/completions"
@@ -23,17 +23,17 @@ class GrokAPIClient:
             "messages": messages,
             "temperature": 0.7
         }
-        
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(url, headers=self.headers, json=payload)
-            
+
             if response.status_code != 200:
                 print(f"Grok API error: {response.status_code} - {response.text}")
                 return None
-            
+
             data = response.json()
             return data.get("choices", [{}])[0].get("message", {}).get("content")
-    
+
     async def analyze_candidate(self, candidate_data: Dict) -> Dict:
         """Analyze a candidate profile and extract structured information."""
         bio = candidate_data.get("bio", "") or ""
@@ -41,11 +41,11 @@ class GrokAPIClient:
         username = candidate_data.get("x_username", "")
         display_name = candidate_data.get("display_name", "")
         github_url = candidate_data.get("github_url", "")
-        
+
         tweets_text = "\n".join([
             f"- {t.get('text', '')}" for t in tweets[:10]
         ]) if tweets else "No tweets available"
-        
+
         prompt = f"""Analyze this candidate profile and extract relevant information for recruiting purposes.
 
 Username: @{username}
@@ -73,9 +73,9 @@ Only respond with valid JSON, no additional text."""
             {"role": "system", "content": "You are a technical recruiter assistant that analyzes candidate profiles. Always respond with valid JSON only."},
             {"role": "user", "content": prompt}
         ]
-        
+
         response = await self.chat_completion(messages)
-        
+
         if not response:
             return {
                 "summary": None,
@@ -84,7 +84,7 @@ Only respond with valid JSON, no additional text."""
                 "codeforces_rating": None,
                 "github_repos_count": None
             }
-        
+
         try:
             json_match = re.search(r'\{[\s\S]*\}', response)
             if json_match:
@@ -98,7 +98,7 @@ Only respond with valid JSON, no additional text."""
                 }
         except json.JSONDecodeError:
             print(f"Failed to parse Grok response as JSON: {response[:200]}")
-        
+
         return {
             "summary": response[:500] if response else None,
             "skills": [],
@@ -106,16 +106,16 @@ Only respond with valid JSON, no additional text."""
             "codeforces_rating": None,
             "github_repos_count": None
         }
-    
+
     async def generate_candidate_summary(self, candidate_data: Dict) -> str:
         """Generate a professional summary for a candidate."""
         bio = candidate_data.get("bio", "") or ""
         tweets = candidate_data.get("raw_tweets", [])
         skills = candidate_data.get("skills_extracted", [])
-        
+
         tweets_text = "\n".join([f"- {t.get('text', '')}" for t in tweets[:5]]) if tweets else ""
         skills_text = ", ".join(skills) if skills else "Not extracted yet"
-        
+
         prompt = f"""Write a concise 2-3 sentence professional summary for this candidate:
 
 Bio: {bio}
@@ -128,26 +128,26 @@ Focus on their technical expertise and potential value to employers."""
             {"role": "system", "content": "You are a professional recruiter writing candidate summaries."},
             {"role": "user", "content": prompt}
         ]
-        
+
         response = await self.chat_completion(messages)
         return response or "Summary not available."
-    
+
     async def score_candidate_for_job(self, candidate_data: Dict, job_requirements: str) -> float:
         """Score how well a candidate matches job requirements (0-100)."""
         bio = candidate_data.get("bio", "") or ""
         skills = candidate_data.get("skills_extracted", [])
         summary = candidate_data.get("grok_summary", "") or ""
-        
+
         # GitHub context (if available)
         gh_profile = candidate_data.get("tweet_analysis", {}).get("github_profile", {}) if isinstance(candidate_data.get("tweet_analysis"), dict) else {}
         gh_languages = gh_profile.get("languages", {}) or {}
         gh_dev_score = gh_profile.get("developer_score", None)
         gh_top_repos = gh_profile.get("top_repos", []) or []
-        
+
         repos_text = ""
         for repo in gh_top_repos[:3]:
             repos_text += f"- {repo.get('name', '')}: {repo.get('description', '') or 'No description'} (⭐{repo.get('stars', 0)}, {repo.get('language', 'unknown')})\n"
-        
+
         gh_block = f"""
 GitHub evidence:
 - Developer score: {gh_dev_score if gh_dev_score is not None else 'unknown'}
@@ -155,7 +155,7 @@ GitHub evidence:
 - Top repos:
 {repos_text if repos_text else '- none found'}
 """ if gh_profile else "GitHub evidence: none"
-        
+
         prompt = f"""Rate how well this candidate matches the job requirements on a scale of 0-100.
 
 CANDIDATE:
@@ -168,21 +168,21 @@ JOB REQUIREMENTS:
 {job_requirements}
 
 Respond with ONLY a number between 0 and 100, nothing else."""
-        
+
         messages = [
             {"role": "system", "content": "You are a recruiter scoring candidate-job fit. Respond with only a number."},
             {"role": "user", "content": prompt}
         ]
-        
+
         response = await self.chat_completion(messages)
-        
+
         if response:
             try:
                 score = float(re.search(r'\d+', response).group())
                 return min(100, max(0, score))
             except (ValueError, AttributeError):
                 pass
-        
+
         return 50.0
 
     async def classify_user_from_tweets(self, user_data: Dict, tweets: List[Dict]) -> Dict:
@@ -195,7 +195,7 @@ Respond with ONLY a number between 0 and 100, nothing else."""
         bio = user_data.get("description", "") or ""
         followers = user_data.get("public_metrics", {}).get("followers_count", 0)
         following = user_data.get("public_metrics", {}).get("following_count", 0)
-        
+
         # format tweets for analysis
         tweets_formatted = []
         for t in tweets[:15]:
@@ -204,9 +204,9 @@ Respond with ONLY a number between 0 and 100, nothing else."""
             likes = metrics.get("like_count", 0)
             retweets = metrics.get("retweet_count", 0)
             tweets_formatted.append(f"- {text} [Likes: {likes}, RTs: {retweets}]")
-        
+
         tweets_text = "\n".join(tweets_formatted) if tweets_formatted else "No tweets available"
-        
+
         prompt = f"""Analyze this X user's profile and tweets to classify them for recruiting purposes.
 
 USERNAME: @{username}
@@ -244,9 +244,9 @@ Respond with JSON only:
             {"role": "system", "content": "You are an expert technical recruiter who can identify real developers from their social media presence. Analyze tweet content deeply - look for evidence of actual coding work, not just tech talk. Be skeptical of high-follower accounts that only share tips without showing real work."},
             {"role": "user", "content": prompt}
         ]
-        
+
         response = await self.chat_completion(messages)
-        
+
         default_result = {
             "candidate_type": "unknown",
             "confidence": 0.0,
@@ -260,10 +260,10 @@ Respond with JSON only:
             "recommendation": "skip",
             "estimated_seniority": "unknown"
         }
-        
+
         if not response:
             return default_result
-        
+
         try:
             json_match = re.search(r'\{[\s\S]*\}', response)
             if json_match:
@@ -283,35 +283,35 @@ Respond with JSON only:
                 }
         except (json.JSONDecodeError, ValueError) as e:
             print(f"Failed to parse classification response: {e}")
-        
+
         return default_result
 
     async def generate_search_queries(self, job_title: str, keywords: List[str], regions: List[str] = None) -> List[str]:
         """Generate smart X search queries to find real developers - targeting people who SHARE CODE."""
-        
+
         # Build highly targeted queries that find developers sharing their work
         # Key insight: real devs share code, repos, PRs, bugs they fixed
         queries = []
-        
+
         primary_tech = keywords[0] if keywords else "code"
         secondary_tech = keywords[1] if len(keywords) > 1 else ""
-        
+
         # Query 1: GitHub activity - people sharing repos/PRs
         github_query = f'(github.com OR "pull request" OR "merged PR" OR "my repo") ({primary_tech}) -is:retweet -hiring -job lang:en'
         queries.append(github_query)
-        
+
         # Query 2: Code sharing - actual code discussions
         code_query = f'({primary_tech}) ("fixed a bug" OR "debugging" OR "refactored" OR "implemented") -is:retweet -hiring lang:en'
         queries.append(code_query)
-        
+
         # Query 3: Project shipping - people who ship
         ship_query = f'({primary_tech}) ("just shipped" OR "launched" OR "released" OR "deployed") ("my app" OR "my project" OR "side project") -is:retweet -hiring lang:en'
         queries.append(ship_query)
-        
-        # Query 4: Learning in public - devs sharing progress  
+
+        # Query 4: Learning in public - devs sharing progress
         learning_query = f'({primary_tech}) ("TIL" OR "learned" OR "figured out" OR "finally got") (code OR programming OR dev) -is:retweet -hiring lang:en'
         queries.append(learning_query)
-        
+
         # Query 5: Tech-specific hashtags with builder intent
         if "iOS" in keywords or "Swift" in keywords or "SwiftUI" in keywords:
             hashtag_query = f'(#iosdev OR #swiftui OR #swiftlang) ("built" OR "building" OR "working on" OR "shipped") -is:retweet -hiring lang:en'
@@ -322,11 +322,11 @@ Respond with JSON only:
         else:
             hashtag_query = f'(#coding OR #programming OR #developer) ({primary_tech}) ("I built" OR "working on") -is:retweet -hiring lang:en'
         queries.append(hashtag_query)
-        
+
         # Query 6: Open source contributors
         oss_query = f'({primary_tech}) ("open source" OR "OSS" OR "contributor" OR "maintainer") -is:retweet -hiring -job lang:en'
         queries.append(oss_query)
-        
+
         return queries
 
     async def generate_evidence_card(self, candidate_data: Dict, job_data: Dict, learned_pattern: Dict = None) -> Dict:
@@ -342,17 +342,17 @@ Respond with JSON only:
         top_repos = github_profile.get("top_repos") or []
         languages = github_profile.get("languages") or {}
         dev_score = github_profile.get("developer_score") or 0
-        
+
         bio = candidate_data.get("bio") or ""
         skills = candidate_data.get("skills_extracted") or []
         tweets = candidate_data.get("raw_tweets") or []
         x_classification = tweet_analysis.get("x_classification") or {}
-        
+
         # Extract job info
         job_title = job_data.get("title", "")
         job_keywords = job_data.get("keywords", [])
         job_requirements = job_data.get("requirements", "") or ""
-        
+
         # Format repos for prompt
         repos_text = ""
         if top_repos:
@@ -362,10 +362,10 @@ Respond with JSON only:
                 repo_stars = repo.get('stars') or 0
                 repo_lang = repo.get('language') or 'Unknown'
                 repos_text += f"- {repo_name}: {repo_desc} (⭐{repo_stars}, {repo_lang})\n"
-        
+
         # Format languages
         lang_text = ", ".join([f"{lang}" for lang in list(languages.keys())[:5]]) if languages else "Unknown"
-        
+
         # Format tweets
         tweets_text = ""
         if tweets:
@@ -373,13 +373,13 @@ Respond with JSON only:
                 tweet_text = (t.get('text') or '')[:150]
                 tweets_text += f"- {tweet_text}\n"
         tweets_text = tweets_text or "No tweets"
-        
+
         # 🧠 Format learned pattern for injection
         pattern_context = ""
         if learned_pattern and learned_pattern.get("confidence", 0) >= 0.2:
             from services.memory import format_pattern_for_prompt
             pattern_context = format_pattern_for_prompt(learned_pattern)
-        
+
         prompt = f"""You are a technical recruiter analyzing a candidate for a specific role. Generate an "Evidence Card" that explains WHY this candidate is a good (or bad) match.
 {pattern_context}
 
@@ -426,9 +426,9 @@ Respond with JSON only:
             {"role": "system", "content": "You are an expert technical recruiter who deeply understands both the technical requirements of roles and how to evaluate candidate evidence. Be specific and concrete - cite actual repos, commits, or tweets as evidence."},
             {"role": "user", "content": prompt}
         ]
-        
+
         response = await self.chat_completion(messages)
-        
+
         default_result = {
             "relevant_repos": [],
             "signals": [],
@@ -439,10 +439,10 @@ Respond with JSON only:
             "suggested_questions": [],
             "outreach_hook": ""
         }
-        
+
         if not response:
             return default_result
-        
+
         try:
             json_match = re.search(r'\{[\s\S]*\}', response)
             if json_match:
@@ -459,9 +459,8 @@ Respond with JSON only:
                 }
         except (json.JSONDecodeError, ValueError) as e:
             print(f"Failed to parse evidence card response: {e}")
-        
-        return default_result
 
+        return default_result
 
     async def generate_evidence_card_with_feedback(
         self, 
@@ -479,16 +478,16 @@ Respond with JSON only:
         top_repos = github_profile.get("top_repos") or []
         languages = github_profile.get("languages") or {}
         dev_score = github_profile.get("developer_score") or 0
-        
+
         bio = candidate_data.get("bio") or ""
         skills = candidate_data.get("skills_extracted") or []
         tweets = candidate_data.get("raw_tweets") or []
-        
+
         # Extract job info
         job_title = job_data.get("title", "")
         job_keywords = job_data.get("keywords", [])
         job_requirements = job_data.get("requirements", "") or ""
-        
+
         # Format repos
         repos_text = ""
         if top_repos:
@@ -498,24 +497,24 @@ Respond with JSON only:
                 repo_stars = repo.get('stars') or 0
                 repo_lang = repo.get('language') or 'Unknown'
                 repos_text += f"- {repo_name}: {repo_desc} (⭐{repo_stars}, {repo_lang})\n"
-        
+
         lang_text = ", ".join([f"{lang}" for lang in list(languages.keys())[:5]]) if languages else "Unknown"
-        
+
         tweets_text = ""
         if tweets:
             for t in tweets[:5]:
                 tweet_text = (t.get('text') or '')[:150]
                 tweets_text += f"- {tweet_text}\n"
         tweets_text = tweets_text or "No tweets"
-        
+
         # Build feedback context
         feedback_context = ""
         if feedback_examples:
             positive_examples = [f for f in feedback_examples if f.get("feedback_type") == "positive"]
             negative_examples = [f for f in feedback_examples if f.get("feedback_type") == "negative"]
-            
+
             feedback_context = "\n\n=== LEARNING FROM PAST FEEDBACK ===\n"
-            
+
             if positive_examples:
                 feedback_context += "\nEXAMPLES OF GOOD EVIDENCE (recruiters liked these):\n"
                 for ex in positive_examples[:3]:
@@ -527,7 +526,7 @@ Respond with JSON only:
                         feedback_context += f", Comment: {comment}"
                     feedback_context += f"\n  Match strength: {ev.get('match_strength', 'N/A')}\n"
                     feedback_context += f"  Why matched: {ev.get('why_matched', 'N/A')[:200]}\n"
-            
+
             if negative_examples:
                 feedback_context += "\nEXAMPLES OF BAD EVIDENCE (recruiters disliked these - AVOID):\n"
                 for ex in negative_examples[:3]:
@@ -539,11 +538,11 @@ Respond with JSON only:
                         feedback_context += f", Issue: {comment}"
                     feedback_context += f"\n  Match strength: {ev.get('match_strength', 'N/A')}\n"
                     feedback_context += f"  Why matched: {ev.get('why_matched', 'N/A')[:200]}\n"
-            
+
             feedback_context += "\nUSE THIS FEEDBACK TO IMPROVE YOUR EVIDENCE GENERATION.\n"
             feedback_context += "- If positive feedback mentioned specific aspects, emphasize similar approaches\n"
             feedback_context += "- If negative feedback mentioned issues, avoid those patterns\n"
-        
+
         prompt = f"""You are a technical recruiter analyzing a candidate for a specific role. Generate an "Evidence Card" that explains WHY this candidate is a good (or bad) match.
 {feedback_context}
 
@@ -590,9 +589,9 @@ Respond with JSON only:
             {"role": "system", "content": "You are an expert technical recruiter who deeply understands both the technical requirements of roles and how to evaluate candidate evidence. Be specific and concrete - cite actual repos, commits, or tweets as evidence. Learn from the feedback provided to improve your evidence quality."},
             {"role": "user", "content": prompt}
         ]
-        
+
         response = await self.chat_completion(messages)
-        
+
         default_result = {
             "relevant_repos": [],
             "signals": [],
@@ -603,10 +602,10 @@ Respond with JSON only:
             "suggested_questions": [],
             "outreach_hook": ""
         }
-        
+
         if not response:
             return default_result
-        
+
         try:
             json_match = re.search(r'\{[\s\S]*\}', response)
             if json_match:
@@ -623,8 +622,126 @@ Respond with JSON only:
                 }
         except (json.JSONDecodeError, ValueError) as e:
             print(f"Failed to parse evidence card response: {e}")
-        
+
         return default_result
+
+    async def filter_github_candidates(
+        self,
+        users: List[Dict],
+        job_title: str,
+        job_keywords: List[str],
+        preferred_location: str = None,
+    ) -> List[Dict]:
+        """
+        Use Grok to intelligently filter and rank GitHub users.
+        Returns only real developers sorted by relevance.
+        """
+        if not users:
+            return []
+
+        # format users for Grok
+        users_text = ""
+        for i, user in enumerate(users[:50]):  # limit to 50 for API
+            username = user.get("login", "unknown")
+            bio = (user.get("bio") or "")[:100]
+            repos = user.get("public_repos", 0)
+            followers = user.get("followers", 0)
+            location = user.get("location") or "Unknown"
+            company = user.get("company") or ""
+
+            users_text += f"{i+1}. @{username} | Bio: {bio} | Repos: {repos} | Followers: {followers} | Location: {location} | Company: {company}\n"
+
+        location_instruction = ""
+        if preferred_location:
+            location_instruction = f"\n\nLOCATION PREFERENCE: Prioritize candidates from {preferred_location}. Rank them higher in the list. Include candidates from other locations too, but put {preferred_location} candidates first."
+
+        prompt = f"""You are filtering GitHub users to find software developers for a {job_title} role.
+Keywords: {', '.join(job_keywords)}{location_instruction}
+
+Here are the users found:
+{users_text}
+
+INCLUDE users who:
+- Have repos (even just a few)
+- Have a bio mentioning development, programming, or tech
+- Have a normal username (not spam patterns)
+- Could be relevant developers
+
+EXCLUDE only these:
+- Spam accounts with usernames like "front-end-123", "backend-dev-2024", "developer-test"
+- Obvious bots or automated accounts
+- Recruiters or HR accounts
+- Company/organization accounts (not individual developers)
+- Completely empty profiles (0 repos, no bio)
+
+Be INCLUSIVE - if someone looks like a real developer, include them. We can filter more later.
+Most users with repos and a bio should be included.
+
+Respond with JSON only:
+{{
+    "qualified_users": ["username1", "username2", ...],
+    "rejected_count": <number of users filtered out>,
+    "rejection_reasons": {{"username": "reason"}} // for top 5 rejections
+}}"""
+
+        messages = [
+            {
+                "role": "system",
+                "content": "You are filtering GitHub users. Be INCLUSIVE - include anyone who looks like a real developer. Only exclude obvious spam, bots, recruiters, and empty profiles.",
+            },
+            {"role": "user", "content": prompt},
+        ]
+
+        response = await self.chat_completion(messages)
+
+        if not response:
+            print(f"[Grok] No response from API, returning all users")
+            return users
+
+        try:
+            json_match = re.search(r"\{[\s\S]*\}", response)
+            if json_match:
+                parsed = json.loads(json_match.group())
+                qualified_usernames = parsed.get("qualified_users", [])
+
+                print(
+                    f"[Grok] Response parsed, qualified_users: {qualified_usernames[:10]}"
+                )
+
+                # filter original users list to only include qualified ones, maintaining order
+                username_to_user = {u.get("login"): u for u in users}
+                filtered_users = []
+                for username in qualified_usernames:
+                    # strip @ prefix if present
+                    clean_username = username.lstrip("@")
+                    if clean_username in username_to_user:
+                        filtered_users.append(username_to_user[clean_username])
+                    else:
+                        print(
+                            f"[Grok] Warning: username '{clean_username}' not found in original list"
+                        )
+
+                rejected = parsed.get("rejected_count", 0)
+                print(
+                    f"[Grok] Filtered {len(users)} users -> {len(filtered_users)} qualified ({rejected} rejected)"
+                )
+
+                # If filter is too aggressive (less than 20% pass), return original
+                if len(filtered_users) == 0 and len(users) > 0:
+                    print(
+                        f"[Grok] Filter too aggressive, returning original {len(users)} users"
+                    )
+                    return users
+
+                return filtered_users
+            else:
+                print(f"[Grok] No JSON found in response: {response[:200]}")
+        except (json.JSONDecodeError, ValueError) as e:
+            print(
+                f"[Grok] Failed to parse filter response: {e}, response: {response[:200]}"
+            )
+
+        return users
 
     async def generate_search_strategy(self, job_title: str, job_description: str = "", keywords: List[str] = None, requirements: str = "") -> Dict:
         """
@@ -632,7 +749,7 @@ Respond with JSON only:
         Returns bio keywords, repo topics, languages, and location suggestions.
         """
         keywords_text = ", ".join(keywords) if keywords else "None provided"
-        
+
         prompt = f"""Generate an optimized GitHub search strategy for finding candidates for this role.
 
 Job Title: {job_title}
@@ -663,9 +780,9 @@ Be specific and practical. Use lowercase for topics (GitHub convention). Only re
             {"role": "system", "content": "You are a technical recruiting expert who understands GitHub search optimization. Generate practical search strategies."},
             {"role": "user", "content": prompt}
         ]
-        
+
         response = await self.chat_completion(messages)
-        
+
         default_result = {
             "bio_keywords": [job_title],
             "repo_topics": [],
@@ -679,10 +796,10 @@ Be specific and practical. Use lowercase for topics (GitHub convention). Only re
             },
             "role_type": "unknown"
         }
-        
+
         if not response:
             return default_result
-        
+
         try:
             json_match = re.search(r'\{[\s\S]*\}', response)
             if json_match:
@@ -698,9 +815,8 @@ Be specific and practical. Use lowercase for topics (GitHub convention). Only re
                 }
         except (json.JSONDecodeError, ValueError) as e:
             print(f"Failed to parse search strategy response: {e}")
-        
+
         return default_result
 
 
 grok_client = GrokAPIClient()
-

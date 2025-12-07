@@ -108,7 +108,7 @@ export function SourcingProgress({
   const stage = progress?.stage || "initializing"
   const stageConfig = STAGE_CONFIG[stage] || STAGE_CONFIG.initializing
   const progressValue = progress?.progress || (status?.status === "PENDING" ? 0 : status?.status === "STARTED" ? 10 : 0)
-  const stageLabel = progress?.stage_label || (status?.status === "PENDING" ? "Queued..." : status?.status === "STARTED" ? "Starting..." : "Initializing...")
+  const stageLabel = progress?.stage_label || (status?.status === "PENDING" ? "Queued..." : status?.status === "STARTED" ? "Initializing GitHub Sourcing..." : "Initializing GitHub Sourcing...")
 
   const isComplete = status?.status === "SUCCESS" && showComplete
   const isFailed = status?.status === "FAILURE" || error
@@ -191,11 +191,38 @@ export function SourcingProgress({
                 <span className="text-sm font-medium">
                   {isComplete ? "Complete" : stageLabel}
                 </span>
-                {!isComplete && (
-                  <span className="text-xs text-muted-foreground ml-auto">
-                    {progressValue}%
-                  </span>
-                )}
+                <span className="text-xs text-muted-foreground ml-auto relative">
+                  {isComplete ? (
+                    <motion.span
+                      initial={{ scale: 1 }}
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                      className="inline-flex items-center gap-1 text-foreground font-medium"
+                    >
+                      <motion.span
+                        animate={{ 
+                          opacity: [0.5, 1, 0.5],
+                          y: [0, -2, 0]
+                        }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                      >
+                        ✨
+                      </motion.span>
+                      100%
+                      <motion.span
+                        animate={{ 
+                          opacity: [0.5, 1, 0.5],
+                          y: [0, -2, 0]
+                        }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                      >
+                        ✨
+                      </motion.span>
+                    </motion.span>
+                  ) : (
+                    <span>{progressValue}%</span>
+                  )}
+                </span>
               </motion.div>
             </AnimatePresence>
 

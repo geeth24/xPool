@@ -62,7 +62,7 @@ class CandidateType(str, enum.Enum):
 
 class Job(Base):
     __tablename__ = "jobs"
-    
+
     id = Column(String, primary_key=True, default=generate_uuid)
     title = Column(String, nullable=False)
     description = Column(Text)
@@ -74,8 +74,14 @@ class Job(Base):
     search_strategy = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     candidates = relationship("JobCandidate", back_populates="job", cascade="all, delete-orphan")
+    recruiter_actions = relationship(
+        "RecruiterAction", back_populates="job", cascade="all, delete-orphan"
+    )
+    evidence_feedback = relationship(
+        "EvidenceFeedback", back_populates="job", cascade="all, delete-orphan"
+    )
 
 
 class Candidate(Base):
@@ -152,20 +158,20 @@ class JobCandidate(Base):
 class RecruiterAction(Base):
     """Track recruiter actions per job for self-improving ranking."""
     __tablename__ = "recruiter_actions"
-    
+
     id = Column(String, primary_key=True, default=generate_uuid)
     job_id = Column(String, ForeignKey("jobs.id"), nullable=False)
     candidate_id = Column(String, ForeignKey("candidates.id"), nullable=False)
-    
+
     # Action types: view, shortlist, contact, reject, hire
     action = Column(String, nullable=False)
-    
+
     # Time spent viewing profile (for implicit signals)
     time_spent_seconds = Column(Integer, nullable=True)
-    
+
     created_at = Column(DateTime, default=datetime.utcnow)
-    
-    job = relationship("Job")
+
+    job = relationship("Job", back_populates="recruiter_actions")
     candidate = relationship("Candidate")
 
 
@@ -217,7 +223,7 @@ class EvidenceFeedback(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    job = relationship("Job")
+    job = relationship("Job", back_populates="evidence_feedback")
     candidate = relationship("Candidate")
 
 
